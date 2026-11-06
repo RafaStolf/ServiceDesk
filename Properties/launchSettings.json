@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "ServiceDesk (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "ServiceDesk (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
