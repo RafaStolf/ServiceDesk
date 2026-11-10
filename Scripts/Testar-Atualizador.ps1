@@ -20,6 +20,10 @@ try {
         $result = $LASTEXITCODE
         if (!$rollback -and $result -ne 0) { throw 'Instalação de teste falhou.' }
         if ($rollback -and $result -eq 0) { throw 'Deveria restaurar a versão anterior.' }
+        Write-Host "Cenário: restauração=$rollback; código=$result"
+        Get-Content (Join-Path $work 'resultado.txt') -ErrorAction SilentlyContinue | Write-Host
+        Write-Host "Marker destino: $(Get-Content (Join-Path $target 'update-marker.txt'))"
+        Write-Host "Marker backup: $(Get-Content (Join-Path $work 'backup/update-marker.txt') -ErrorAction SilentlyContinue)"
         $expected = if ($rollback) { 'antigo' } else { 'novo' }
         if ((Get-Content (Join-Path $target 'update-marker.txt')).Trim() -ne $expected) { throw 'Falha na substituição/restauração.' }
         if ((Get-Content (Join-Path $target 'arquivo-local.txt')).Trim() -ne 'preservar') { throw 'Arquivo local alterado.' }
