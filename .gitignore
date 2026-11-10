@@ -52,3 +52,8 @@ _ReSharper*/
 # Generated files
 Generated\ Files/
 *_wpftmp.csproj
+
+# Instalação local e geração do instalador
+/app/
+/installer-output/
+/ServiceDesk-Setup-*.exe

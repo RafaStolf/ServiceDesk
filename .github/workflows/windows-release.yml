@@ -1,7 +1,7 @@
 name: Publicar ServiceDesk para Windows
 on:
   push:
-    branches: [main, feat/distribuicao-atualizacoes, feat/configuracoes-atualizador, feat/segundo-plano-windows]
+    branches: [main, feat/distribuicao-atualizacoes, feat/configuracoes-atualizador, feat/segundo-plano-windows, feat/instalador-windows]
   workflow_dispatch:
 concurrency:
   group: windows-${{ github.ref }}
@@ -54,11 +54,24 @@ jobs:
           Compress-Archive -Path publish/* -DestinationPath ServiceDesk-win-x64.zip
           Get-FileHash ServiceDesk-win-x64.zip -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  ServiceDesk-win-x64.zip" } | Set-Content SHA256SUMS.txt
           "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Compilar instalador por usuário
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw "Inno Setup 6 não encontrado no runner." }
+          & $iscc "/DAppVersion=$env:RELEASE_VERSION" "/DPublishDir=$env:GITHUB_WORKSPACE\publish" Installer/ServiceDesk.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item installer-output/ServiceDesk-Setup-win-x64.exe .
+          Get-FileHash ServiceDesk-Setup-win-x64.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  ServiceDesk-Setup-win-x64.exe" } | Add-Content SHA256SUMS.txt
+      - name: Testar instalação e desinstalação
+        shell: pwsh
+        run: ./Scripts/Testar-Instalador.ps1 -InstallerPath "$env:GITHUB_WORKSPACE/ServiceDesk-Setup-win-x64.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: ServiceDesk-win-x64
           path: |
             ServiceDesk-win-x64.zip
+            ServiceDesk-Setup-win-x64.exe
             SHA256SUMS.txt
       - name: Disponibilizar download
         if: github.ref == 'refs/heads/main'
@@ -67,12 +80,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           @"
-          Aplicativo portátil para Windows x64. Baixe ServiceDesk-win-x64.zip, extraia todo o conteúdo e abra ServiceDesk.exe. Não é necessário instalar ferramentas de desenvolvimento.
+          Instalador para Windows x64: baixe ServiceDesk-Setup-win-x64.exe e execute. Instala no perfil do usuário, sem Git, Visual Studio ou .NET instalado. O ZIP portátil continua disponível como alternativa.
           
           Inclui exportação do histórico com imagens, vídeos e áudios originais, Configurações com instalação de atualizações, execução em segundo plano e início com Windows.
           Áudio e vídeo não são transcritos ou convertidos automaticamente.
           Configurações existentes no perfil do Windows são preservadas. Notificações do Windows podem não estar disponíveis na versão portátil; os alertas dentro do app permanecem.
           Compilado pelo GitHub Actions; interface e downloads de anexos reais ainda precisam de validação de uso.
           "@ | Set-Content release-notes.txt -Encoding utf8
-          gh release create "v$env:RELEASE_VERSION" ServiceDesk-win-x64.zip SHA256SUMS.txt --title "ServiceDesk $env:RELEASE_VERSION" --notes-file release-notes.txt --target "$env:GITHUB_SHA"
+          gh release create "v$env:RELEASE_VERSION" ServiceDesk-win-x64.zip ServiceDesk-Setup-win-x64.exe SHA256SUMS.txt --title "ServiceDesk $env:RELEASE_VERSION" --notes-file release-notes.txt --target "$env:GITHUB_SHA"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
