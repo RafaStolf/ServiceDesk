@@ -352,6 +352,35 @@ public sealed partial class MainPage : Page
         ExportarButton.IsEnabled = _atendimentoSelecionado is not null;
     }
 
+    private async void VerificarAtualizacaoButton_Click(object sender, RoutedEventArgs e)
+    {
+        VerificarAtualizacaoButton.IsEnabled = false;
+        try
+        {
+            var atualizacao = await new AtualizacaoAplicativoService().VerificarAsync(CancellationToken.None);
+            var dialogo = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = atualizacao is null ? "Verificação concluída" : $"Nova versão: {atualizacao.Versao}",
+                Content = atualizacao is null
+                    ? $"Versão atual: {AtualizacaoAplicativoService.VersaoAtual}. Não há uma versão mais recente disponível para download."
+                    : $"Sua versão: {AtualizacaoAplicativoService.VersaoAtual}. Baixe ServiceDesk-win-x64.zip na página que será aberta, extraia em uma nova pasta, feche esta versão e abra o novo ServiceDesk.exe. Suas configurações no perfil do Windows serão mantidas.",
+                CloseButtonText = "Fechar"
+            };
+            if (atualizacao is not null) dialogo.PrimaryButtonText = "Abrir download";
+            if (await dialogo.ShowAsync() == ContentDialogResult.Primary && atualizacao is not null)
+                await Launcher.LaunchUriAsync(atualizacao.Pagina);
+        }
+        catch (Exception)
+        {
+            StatusInfo.Title = "Não foi possível verificar atualizações";
+            StatusInfo.Message = "Confira sua conexão e tente novamente. As versões ficam em github.com/RafaStolf/ServiceDesk/releases.";
+            StatusInfo.Severity = InfoBarSeverity.Warning;
+            StatusInfo.IsOpen = true;
+        }
+        finally { VerificarAtualizacaoButton.IsEnabled = true; }
+    }
+
     private async void ExportarButton_Click(object sender, RoutedEventArgs e)
     {
         if (_atendimentoSelecionado is not { } atendimento) return;
