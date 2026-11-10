@@ -36,9 +36,11 @@ jobs:
           A versão portátil exibe alertas dentro do aplicativo; notificações do Windows podem não estar disponíveis.
           Use Verificar atualização para consultar novas versões.
           "@ | Set-Content publish/LEIA-ME.txt -Encoding utf8
+          $env:SERVICEDESK_DIAGNOSTICO = "1"
           $process = Start-Process -FilePath "$env:GITHUB_WORKSPACE\publish\ServiceDesk.exe" -WorkingDirectory "$env:GITHUB_WORKSPACE\publish" -PassThru
           Start-Sleep -Seconds 10
           if ($process.HasExited) {
+            Get-Content "$env:TEMP/ServiceDesk-inicializacao.log" -ErrorAction SilentlyContinue
             Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-2)} -ErrorAction SilentlyContinue | Select-Object -First 10 TimeCreated, Message | Format-List
             throw "ServiceDesk encerrou ao iniciar (código $($process.ExitCode))."
           }
