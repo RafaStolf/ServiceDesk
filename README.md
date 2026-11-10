@@ -67,3 +67,11 @@ As configurações em `%USERPROFILE%\.servicedesk` são preservadas. Na versão 
 O workflow `.github/workflows/windows-release.yml` compila em Windows e publica o ZIP e seu SHA-256 após um push na `main`. Nenhum arquivo de configuração local é incluído no pacote.
 
 O nome da exportação usa o ID da conversa da URL do Chatwoot. Ao repetir uma exportação com mídias no mesmo destino, o Windows cria uma pasta com sufixo numérico para preservar os arquivos anteriores.
+
+## Segundo plano e início com Windows
+
+Ao abrir esta versão pela primeira vez, a inicialização com Windows e a permanência em segundo plano ficam habilitadas para o usuário atual. O início com Windows ocorre no login, sem abrir o painel. O aplicativo mantém a sincronização e os alertas enquanto estiver em execução, mesmo com a janela oculta.
+
+Fechar a janela envia para o ícone junto ao relógio. Clique no ícone para abrir, ou use o botão direito → **Abrir ServiceDesk** / **Sair**. Abrir novamente pelo atalho mostra a instância existente. Em **Configurações → Geral** é possível desligar o início com Windows ou a permanência em segundo plano. A atualização encerra completamente o processo antes de substituir os arquivos. Se o Windows não disponibilizar o ícone, a janela permanece acessível.
+
+A inicialização automática registra somente o executável no perfil do usuário (HKCU Run), sem privilégios de administrador nem credenciais do Chatwoot. Mantenha o executável em uma pasta permanente. O Windows também permite desabilitar aplicativos de inicialização pelo Gerenciador de Tarefas; o ServiceDesk não reabilita uma preferência desligada dentro do aplicativo.
