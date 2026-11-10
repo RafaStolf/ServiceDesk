@@ -29,6 +29,7 @@
                 <AppBarButton x:Name="AtualizarButton" Icon="Refresh" Label="Atualizar" Click="AtualizarButton_Click" />
                 <AppBarButton Icon="ContactInfo" Label="Chatwoot" Click="ConfiguracaoChatwootButton_Click" />
                 <AppBarButton x:Name="AtualizacaoAutomaticaButton" Icon="Setting" Label="Atualização automática" Click="AtualizacaoAutomaticaButton_Click" />
+                <AppBarButton x:Name="ExportarButton" Icon="Copy" Label="Usar no ChatGPT" Click="ExportarButton_Click" IsEnabled="False" />
                 <AppBarButton x:Name="AbrirButton" Icon="OpenFile" Label="Abrir no Chatwoot" Click="AbrirButton_Click" IsEnabled="False" />
             </CommandBar>
         </Grid>

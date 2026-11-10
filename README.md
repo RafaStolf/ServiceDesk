@@ -45,3 +45,11 @@ Cada pessoa deverá configurar sua própria chave API, ID de usuário e Inbox ap
 ## Documentos de processo
 
 `Diretriz Oficial do Suporte - N1 3.docx` e `FluxoN1.png` são materiais de referência do processo N1; não são usados nem alterados pelo aplicativo.
+
+## Usar um atendimento no ChatGPT
+
+Selecione um atendimento e clique em **Usar no ChatGPT**. Revise a prévia e escolha **Copiar texto** ou **Salvar pacote com mídias**. A cópia contém somente texto. O pacote ZIP contém `historico.txt`, instruções e os anexos originais das mensagens públicas (imagens, vídeos, áudios e outros arquivos), relacionados à mensagem pelo nome. A exportação percorre todo o histórico público; notas privadas e eventos ficam de fora.
+
+Extraia o ZIP e anexe o histórico e as mídias em um chat do projeto **Atendimentos**. O envio é manual. A aceitação e análise de formatos e tamanhos depende dos recursos disponíveis no ChatGPT; preservar o original não garante que ele seja interpretado. Áudio/vídeo não aceitos precisam de transcrição e/ou extração de imagens em uma etapa adicional; o ServiceDesk ainda não faz essa conversão.
+
+Downloads utilizam os endereços HTTPS fornecidos pelo Chatwoot, sem enviar a chave da API ao servidor de mídia. Se algum anexo estiver indisponível, a exportação informa erro e não copia um pacote incompleto ao destino. Não há alteração da conversa no Chatwoot.

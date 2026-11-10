@@ -38,6 +38,66 @@ public sealed class ChatwootSyncService : IDisposable
         return resultado.OrderBy(item => item.ReferenciaInteracao).ToList();
     }
 
+    public async Task<ExportacaoAtendimento> ExportarAtendimentoAsync(AtendimentoMonitorado atendimento, CancellationToken cancellationToken)
+    {
+        var mensagens = new Dictionary<long, JsonElement>();
+        long? before = null;
+        while (true)
+        {
+            var sufixo = before is null ? "" : $"?before={before}";
+            using var documento = await ObterJsonAsync($"api/v1/accounts/{_configuracao.ContaId}/conversations/{atendimento.Id}/messages{sufixo}", cancellationToken);
+            var pagina = documento.RootElement.GetProperty("payload").EnumerateArray().ToList();
+            if (pagina.Count == 0) break;
+            var menorId = pagina.Min(item => item.GetProperty("id").GetInt64());
+            if (before is not null && menorId >= before.Value)
+                throw new InvalidOperationException("Não foi possível obter o histórico completo: a paginação não avançou.");
+            foreach (var mensagem in pagina)
+                mensagens.TryAdd(mensagem.GetProperty("id").GetInt64(), mensagem.Clone());
+            before = menorId;
+        }
+        var arquivos = new List<AnexoAtendimento>();
+        var texto = new System.Text.StringBuilder();
+        texto.AppendLine($"ATENDIMENTO #{atendimento.Id}");
+        texto.AppendLine($"Cliente: {atendimento.Cliente}");
+        texto.AppendLine($"Empresa: {atendimento.Empresa}");
+        texto.AppendLine($"Ticket: {atendimento.Ticket}");
+        texto.AppendLine($"Situação: {atendimento.SituacaoText}");
+        texto.AppendLine($"Abertura: {atendimento.CriadoEm:O}");
+        texto.AppendLine($"Exportado em: {DateTimeOffset.Now:O}");
+        texto.AppendLine("Histórico público em ordem cronológica. Notas privadas e eventos excluídos. Anexos identificados pelo nome do arquivo no pacote de exportação.");
+        texto.AppendLine();
+        var publicas = mensagens.Values.Where(EMensagemPublica)
+            .OrderBy(item => LerData(item, "created_at") ?? DateTimeOffset.MinValue)
+            .ThenBy(item => item.GetProperty("id").GetInt64()).ToList();
+        if (publicas.Count == 0) texto.AppendLine("Nenhuma mensagem pública disponível.");
+        foreach (var mensagem in publicas)
+        {
+            var nome = mensagem.TryGetProperty("sender", out var remetente) && remetente.ValueKind == JsonValueKind.Object
+                ? LerTexto(remetente, "name") : null;
+            var autor = nome ?? (EMensagemDoCliente(mensagem) ? "Cliente" : "Atendente / bot");
+            var data = LerData(mensagem, "created_at")?.ToString("O") ?? "Data indisponível";
+            texto.AppendLine($"[{data}] {autor}:");
+            texto.AppendLine(LerTexto(mensagem, "content") ?? "[Mensagem sem texto]");
+            if (mensagem.TryGetProperty("attachments", out var anexos) && anexos.ValueKind == JsonValueKind.Array && anexos.GetArrayLength() > 0)
+            {
+                foreach (var anexo in anexos.EnumerateArray())
+                {
+                    var url = LerTexto(anexo, "data_url");
+                    var tipo = LerTexto(anexo, "file_type") ?? "arquivo";
+                    var indice = arquivos.Count + 1;
+                    var extensao = Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                        ? Path.GetExtension(uri.AbsolutePath) : "";
+                    if (extensao.Length > 10 || extensao.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '.')) extensao = "";
+                    var nomeArquivo = $"anexos/{indice:D3}-mensagem-{mensagem.GetProperty("id").GetInt64()}{extensao}";
+                    arquivos.Add(new AnexoAtendimento(nomeArquivo, url, tipo));
+                    texto.AppendLine($"[Anexo: {nomeArquivo} | tipo: {tipo}]");
+                }
+            }
+            texto.AppendLine();
+        }
+        return new ExportacaoAtendimento(texto.ToString(), arquivos);
+    }
+
     private async Task<long> BuscarIdUsuarioAsync(CancellationToken cancellationToken)
     {
         using var documento = await ObterJsonAsync("api/v1/profile", cancellationToken);

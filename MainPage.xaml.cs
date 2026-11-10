@@ -46,6 +46,7 @@ public sealed partial class MainPage : Page
         _sincronizando = true;
         AtualizarButton.IsEnabled = false;
         AbrirButton.IsEnabled = false;
+        ExportarButton.IsEnabled = false;
         StatusInfo.Severity = InfoBarSeverity.Informational;
         StatusInfo.Title = "Atualizando";
         StatusInfo.Message = "Consultando seus atendimentos no Chatwoot...";
@@ -302,6 +303,7 @@ public sealed partial class MainPage : Page
     private void AplicarFiltros()
     {
         AbrirButton.IsEnabled = false;
+        ExportarButton.IsEnabled = false;
         _atendimentoSelecionado = null;
         PreencherLista();
     }
@@ -347,6 +349,76 @@ public sealed partial class MainPage : Page
     {
         _atendimentoSelecionado = (sender as FrameworkElement)?.Tag as AtendimentoMonitorado;
         AbrirButton.IsEnabled = _atendimentoSelecionado is not null;
+        ExportarButton.IsEnabled = _atendimentoSelecionado is not null;
+    }
+
+    private async void ExportarButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_atendimentoSelecionado is not { } atendimento) return;
+        ExportarButton.IsEnabled = false;
+        try
+        {
+            using var chatwoot = new ChatwootSyncService(CarregadorConfiguracaoChatwoot.Carregar());
+            var exportacao = await chatwoot.ExportarAtendimentoAsync(atendimento, CancellationToken.None);
+            var previa = new TextBox { Text = exportacao.Texto, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 350 };
+            var conteudo = new StackPanel { Spacing = 12 };
+            conteudo.Children.Add(new TextBlock
+            {
+                Text = "Revise e edite antes de compartilhar. Para incluir imagens, vídeos e áudios, salve o pacote ZIP, extraia e anexe o histórico e as mídias no ChatGPT. Copiar texto não inclui mídias. Áudio/vídeo podem exigir transcrição ou conversão.",
+                TextWrapping = TextWrapping.Wrap
+            });
+            conteudo.Children.Add(previa);
+            var dialogo = new ContentDialog
+            {
+                XamlRoot = XamlRoot, Title = $"Exportar atendimento #{atendimento.Id}", Content = conteudo,
+                PrimaryButtonText = "Copiar texto", SecondaryButtonText = "Salvar pacote com mídias", CloseButtonText = "Cancelar"
+            };
+            var resultado = await dialogo.ShowAsync();
+            if (resultado == ContentDialogResult.None) return;
+            if (resultado == ContentDialogResult.Primary)
+            {
+                var dados = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dados.SetText(previa.Text);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dados);
+            }
+            else
+            {
+                var seletor = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"atendimento-{atendimento.Id}" };
+                seletor.FileTypeChoices.Add("Pacote com histórico e mídias", new List<string> { ".zip" });
+                WinRT.Interop.InitializeWithWindow.Initialize(seletor,
+                    WinRT.Interop.WindowNative.GetWindowHandle(((App)Application.Current).MainWindow));
+                var arquivo = await seletor.PickSaveFileAsync();
+                if (arquivo is null) return;
+                // Só copia o pacote concluído para o destino escolhido.
+                var temporario = Path.GetTempFileName();
+                try
+                {
+                    StatusInfo.Title = "Baixando anexos";
+                    StatusInfo.Message = $"Preparando {exportacao.Anexos.Count} anexo(s)...";
+                    StatusInfo.Severity = InfoBarSeverity.Informational;
+                    StatusInfo.IsOpen = true;
+                    await using (var destino = File.Create(temporario))
+                        await PacoteAtendimento.SalvarAsync(destino, exportacao with { Texto = previa.Text }, CancellationToken.None);
+                    await using var origem = File.OpenRead(temporario);
+                    await using var destinoFinal = await arquivo.OpenStreamForWriteAsync();
+                    destinoFinal.SetLength(0);
+                    await origem.CopyToAsync(destinoFinal);
+                }
+                finally { File.Delete(temporario); }
+            }
+            StatusInfo.Severity = InfoBarSeverity.Success;
+            StatusInfo.Title = resultado == ContentDialogResult.Primary ? "Texto copiado" : "Pacote salvo";
+            StatusInfo.Message = "No ChatGPT, cole o texto; para incluir mídias, extraia o ZIP e anexe historico.txt e os anexos no mesmo chat.";
+            StatusInfo.IsOpen = true;
+        }
+        catch (Exception ex)
+        {
+            StatusInfo.Severity = InfoBarSeverity.Error;
+            StatusInfo.Title = "Não foi possível exportar";
+            StatusInfo.Message = ex.Message;
+            StatusInfo.IsOpen = true;
+        }
+        finally { ExportarButton.IsEnabled = _atendimentoSelecionado is not null && !_sincronizando; }
     }
 
     private async void AbrirButton_Click(object sender, RoutedEventArgs e)
