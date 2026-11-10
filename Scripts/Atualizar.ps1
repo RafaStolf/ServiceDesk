@@ -7,8 +7,8 @@ try {
     $old = Get-Process -Id $config.ProcessId -ErrorAction SilentlyContinue
     if ($old -and !$old.WaitForExit(60000)) { throw 'O ServiceDesk ainda está aberto. Feche-o e tente novamente.' }
     New-Item -ItemType Directory -Path $backup -Force | Out-Null
-    foreach ($source in Get-ChildItem -LiteralPath $config.Stage -File -Recurse) {
-        $relative = $source.FullName.Substring($config.Stage.Length).TrimStart('\')
+    foreach ($relative in Get-ChildItem -LiteralPath $config.Stage -File -Recurse -Name) {
+        $source = Join-Path $config.Stage $relative
         $target = Join-Path $config.Target $relative
         $saved = Join-Path $backup $relative
         if (Test-Path -LiteralPath $target) {
@@ -17,7 +17,7 @@ try {
         }
         $changed.Add($relative)
         New-Item -ItemType Directory -Path (Split-Path $target) -Force | Out-Null
-        Copy-Item -LiteralPath $source.FullName -Destination $target -Force
+        Copy-Item -LiteralPath $source -Destination $target -Force
     }
     $process = Start-Process -FilePath (Join-Path $config.Target 'ServiceDesk.exe') -WorkingDirectory $config.Target -PassThru
     Start-Sleep -Seconds 10
