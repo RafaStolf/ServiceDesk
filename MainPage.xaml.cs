@@ -26,6 +26,12 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         InitializeComponent();
+        if (Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1")
+        {
+            var teste = CriarPreviaExportacao("Cabeçalho\r\nCliente\r\nMensagem final");
+            if (!teste.Text.Contains("Mensagem final", StringComparison.Ordinal))
+                throw new InvalidOperationException("A prévia truncou o histórico em múltiplas linhas.");
+        }
         StatusComboBox.Items.Add("Todos");
         StatusComboBox.Items.Add("Em aberto");
         StatusComboBox.Items.Add("Adiado");
@@ -381,6 +387,15 @@ public sealed partial class MainPage : Page
         finally { VerificarAtualizacaoButton.IsEnabled = true; }
     }
 
+    private static TextBox CriarPreviaExportacao(string texto)
+    {
+        // Habilite múltiplas linhas antes de atribuir o histórico: o controle
+        // em modo de uma linha descarta o conteúdo após a primeira quebra.
+        var previa = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 350 };
+        previa.Text = texto;
+        return previa;
+    }
+
     private async void ExportarButton_Click(object sender, RoutedEventArgs e)
     {
         if (_atendimentoSelecionado is not { } atendimento) return;
@@ -389,7 +404,7 @@ public sealed partial class MainPage : Page
         {
             using var chatwoot = new ChatwootSyncService(CarregadorConfiguracaoChatwoot.Carregar());
             var exportacao = await chatwoot.ExportarAtendimentoAsync(atendimento, CancellationToken.None);
-            var previa = new TextBox { Text = exportacao.Texto, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 350 };
+            var previa = CriarPreviaExportacao(exportacao.Texto);
             var conteudo = new StackPanel { Spacing = 12 };
             conteudo.Children.Add(new TextBlock
             {
