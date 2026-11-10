@@ -444,22 +444,23 @@ public sealed partial class MainPage : Page
                 }
                 else
                 {
-                // Só copia o pacote concluído para o destino escolhido.
-                var temporario = Path.GetTempFileName();
-                try
-                {
-                    StatusInfo.Title = "Baixando anexos";
-                    StatusInfo.Message = $"Preparando {exportacao.Anexos.Count} anexo(s)...";
-                    StatusInfo.Severity = InfoBarSeverity.Informational;
-                    StatusInfo.IsOpen = true;
-                    await using (var destino = File.Create(temporario))
-                        await PacoteAtendimento.SalvarAsync(destino, exportacao with { Texto = previa.Text }, CancellationToken.None);
-                    await using var origem = File.OpenRead(temporario);
-                    await using var destinoFinal = await arquivo.OpenStreamForWriteAsync();
-                    destinoFinal.SetLength(0);
-                    await origem.CopyToAsync(destinoFinal);
+                    // Só copia o pacote concluído para o destino escolhido.
+                    var temporario = Path.GetTempFileName();
+                    try
+                    {
+                        StatusInfo.Title = "Baixando anexos";
+                        StatusInfo.Message = $"Preparando {exportacao.Anexos.Count} anexo(s)...";
+                        StatusInfo.Severity = InfoBarSeverity.Informational;
+                        StatusInfo.IsOpen = true;
+                        await using (var destino = File.Create(temporario))
+                            await PacoteAtendimento.SalvarAsync(destino, exportacao with { Texto = previa.Text }, CancellationToken.None);
+                        await using var origem = File.OpenRead(temporario);
+                        await using var destinoFinal = await arquivo.OpenStreamForWriteAsync();
+                        destinoFinal.SetLength(0);
+                        await origem.CopyToAsync(destinoFinal);
+                    }
+                    finally { File.Delete(temporario); }
                 }
-                finally { File.Delete(temporario); }\n                }
             }
             StatusInfo.Severity = InfoBarSeverity.Success;
             StatusInfo.Title = resultado == ContentDialogResult.Primary ? "Texto copiado" : "Arquivo salvo";
