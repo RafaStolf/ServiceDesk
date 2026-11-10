@@ -26,6 +26,9 @@ jobs:
           msbuild ServiceDesk.csproj /restore /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:WindowsPackageType=None /p:WindowsAppSDKSelfContained=true /p:SelfContained=true /p:EnableMsixTooling=false /p:EnableWinAppRunSupport=false /p:PublishSingleFile=false /p:PublishTrimmed=false /p:PublishReadyToRun=false /p:Version=$version /p:AssemblyVersion=$version /p:FileVersion=$version /p:PublishDir="$env:GITHUB_WORKSPACE\publish\"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (!(Test-Path publish/ServiceDesk.exe)) { throw "Executável não foi gerado." }
+          $output = "bin/x64/Release/net10.0-windows10.0.26100.0/win-x64"
+          Copy-Item "$output/ServiceDesk.pri" publish/ServiceDesk.pri -Force
+          Copy-Item "$output/*.xbf" publish/ -Force
           New-Item -ItemType Directory -Path publish/Assets -Force | Out-Null
           Copy-Item Assets/* publish/Assets/ -Force
           @"
