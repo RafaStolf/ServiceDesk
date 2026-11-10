@@ -67,6 +67,7 @@ public sealed partial class MainPage
             try
             {
                 await new AtualizacaoAplicativoService().PrepararAsync(disponivel, CancellationToken.None);
+                ocupado = false;
                 Application.Current.Exit();
             }
             catch (Exception ex) { status.Text = $"Não foi possível atualizar: {ex.Message}"; }
