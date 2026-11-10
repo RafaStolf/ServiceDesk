@@ -103,107 +103,12 @@ public sealed partial class MainPage : Page
         {
             _sincronizador.Interval = TimeSpan.FromMinutes(_intervaloAtualizacaoMinutos);
             _sincronizador.Start();
-            AtualizacaoAutomaticaButton.Label = $"Automática: {_intervaloAtualizacaoMinutos} min";
+
         }
         else
         {
-            AtualizacaoAutomaticaButton.Label = "Automática: desligada";
+
         }
-    }
-
-    private async void ConfiguracaoChatwootButton_Click(object sender, RoutedEventArgs e)
-    {
-        ConfiguracaoChatwoot configuracao;
-        try { configuracao = CarregadorConfiguracaoChatwoot.Carregar(); }
-        catch (Exception ex)
-        {
-            StatusInfo.Severity = InfoBarSeverity.Error;
-            StatusInfo.Title = "Configuração do Chatwoot indisponível";
-            StatusInfo.Message = ex.Message;
-            StatusInfo.IsOpen = true;
-            return;
-        }
-
-        var chave = new PasswordBox { Header = "Chave da API", Password = configuracao.Token, PasswordRevealMode = PasswordRevealMode.Hidden };
-        var mostrarChave = new ToggleSwitch { Header = "Mostrar chave da API", IsOn = false };
-        mostrarChave.Toggled += (_, _) => chave.PasswordRevealMode = mostrarChave.IsOn ? PasswordRevealMode.Visible : PasswordRevealMode.Hidden;
-        var usuario = new TextBox { Header = "ID do usuário", Text = configuracao.UsuarioId?.ToString() ?? string.Empty, PlaceholderText = "Ex.: 123" };
-        var inbox = new TextBox { Header = "ID do Inbox", Text = configuracao.InboxId?.ToString() ?? string.Empty, PlaceholderText = "Ex.: 456" };
-        var conteudo = new StackPanel { Spacing = 12 };
-        conteudo.Children.Add(new TextBlock { Text = "A chave fica salva apenas na configuração local deste Windows. O Inbox restringe a fila consultada.", TextWrapping = TextWrapping.Wrap });
-        conteudo.Children.Add(chave);
-        conteudo.Children.Add(mostrarChave);
-        conteudo.Children.Add(usuario);
-        conteudo.Children.Add(inbox);
-        var dialogo = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "Integração Chatwoot",
-            Content = conteudo,
-            PrimaryButtonText = "Salvar",
-            CloseButtonText = "Cancelar",
-            DefaultButton = ContentDialogButton.Primary
-        };
-        if (await dialogo.ShowAsync() != ContentDialogResult.Primary) return;
-        if (string.IsNullOrWhiteSpace(chave.Password) || !long.TryParse(usuario.Text, out _) || !long.TryParse(inbox.Text, out _))
-        {
-            StatusInfo.Severity = InfoBarSeverity.Error;
-            StatusInfo.Title = "Dados inválidos";
-            StatusInfo.Message = "Informe uma chave da API e IDs numéricos para usuário e Inbox.";
-            StatusInfo.IsOpen = true;
-            return;
-        }
-        ConfiguracaoLocal.SalvarPropriedades(new Dictionary<string, string>
-        {
-            ["chatwoot.api-access-token"] = chave.Password,
-            ["chatwoot.user-id"] = usuario.Text,
-            ["chatwoot.inbox-id"] = inbox.Text
-        });
-        await AtualizarAsync();
-    }
-
-    private async void AtualizacaoAutomaticaButton_Click(object sender, RoutedEventArgs e)
-    {
-        var ativa = new ToggleSwitch { Header = "Atualizar automaticamente", IsOn = _atualizacaoAutomaticaAtiva };
-        var intervalo = new NumberBox
-        {
-            Header = "Intervalo em minutos",
-            Minimum = 1,
-            Maximum = 120,
-            Value = _intervaloAtualizacaoMinutos,
-            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline
-        };
-        var notificacoes = new ToggleSwitch { Header = "Notificar atendimento sem interação", IsOn = _notificacoesAtivas };
-        var limiteNotificacao = new NumberBox
-        {
-            Header = "Notificar após (minutos)", Minimum = 1, Maximum = 1440, Value = _limiteNotificacaoMinutos,
-            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline
-        };
-        var conteudo = new StackPanel { Spacing = 16 };
-        conteudo.Children.Add(new TextBlock { Text = "O ServiceDesk sincroniza apenas dados de leitura do Chatwoot.", TextWrapping = TextWrapping.Wrap });
-        conteudo.Children.Add(ativa);
-        conteudo.Children.Add(intervalo);
-        conteudo.Children.Add(notificacoes);
-        conteudo.Children.Add(limiteNotificacao);
-
-        var dialogo = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "Atualização automática",
-            Content = conteudo,
-            PrimaryButtonText = "Salvar",
-            CloseButtonText = "Cancelar",
-            DefaultButton = ContentDialogButton.Primary
-        };
-        if (await dialogo.ShowAsync() != ContentDialogResult.Primary) return;
-
-        _atualizacaoAutomaticaAtiva = ativa.IsOn;
-        _intervaloAtualizacaoMinutos = Math.Clamp((int)Math.Round(double.IsNaN(intervalo.Value) ? 5 : intervalo.Value), 1, 120);
-        _notificacoesAtivas = notificacoes.IsOn;
-        _limiteNotificacaoMinutos = Math.Clamp((int)Math.Round(double.IsNaN(limiteNotificacao.Value) ? 10 : limiteNotificacao.Value), 1, 1440);
-        _configuracaoAtualizacao.Salvar(new ConfiguracaoAtualizacao(_atualizacaoAutomaticaAtiva, _intervaloAtualizacaoMinutos, _notificacoesAtivas, _limiteNotificacaoMinutos));
-        AplicarConfiguracaoAtualizacao();
-        NotificarAtendimentosPendentes();
     }
 
     private void PreencherLista()
@@ -356,35 +261,6 @@ public sealed partial class MainPage : Page
         _atendimentoSelecionado = (sender as FrameworkElement)?.Tag as AtendimentoMonitorado;
         AbrirButton.IsEnabled = _atendimentoSelecionado is not null;
         ExportarButton.IsEnabled = _atendimentoSelecionado is not null;
-    }
-
-    private async void VerificarAtualizacaoButton_Click(object sender, RoutedEventArgs e)
-    {
-        VerificarAtualizacaoButton.IsEnabled = false;
-        try
-        {
-            var atualizacao = await new AtualizacaoAplicativoService().VerificarAsync(CancellationToken.None);
-            var dialogo = new ContentDialog
-            {
-                XamlRoot = XamlRoot,
-                Title = atualizacao is null ? "Verificação concluída" : $"Nova versão: {atualizacao.Versao}",
-                Content = atualizacao is null
-                    ? $"Versão atual: {AtualizacaoAplicativoService.VersaoAtual}. Não há uma versão mais recente disponível para download."
-                    : $"Sua versão: {AtualizacaoAplicativoService.VersaoAtual}. Baixe ServiceDesk-win-x64.zip na página que será aberta, extraia em uma nova pasta, feche esta versão e abra o novo ServiceDesk.exe. Suas configurações no perfil do Windows serão mantidas.",
-                CloseButtonText = "Fechar"
-            };
-            if (atualizacao is not null) dialogo.PrimaryButtonText = "Abrir download";
-            if (await dialogo.ShowAsync() == ContentDialogResult.Primary && atualizacao is not null)
-                await Launcher.LaunchUriAsync(atualizacao.Pagina);
-        }
-        catch (Exception)
-        {
-            StatusInfo.Title = "Não foi possível verificar atualizações";
-            StatusInfo.Message = "Confira sua conexão e tente novamente. As versões ficam em github.com/RafaStolf/ServiceDesk/releases.";
-            StatusInfo.Severity = InfoBarSeverity.Warning;
-            StatusInfo.IsOpen = true;
-        }
-        finally { VerificarAtualizacaoButton.IsEnabled = true; }
     }
 
     private static TextBox CriarPreviaExportacao(string texto)

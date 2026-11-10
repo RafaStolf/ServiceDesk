@@ -17,7 +17,7 @@ O ServiceDesk somente lê dados do Chatwoot. Ele não envia mensagens, não alte
 
 Ao abrir o aplicativo, selecione **Chatwoot** no canto superior direito e informe a chave API pessoal, o ID do usuário e o ID do Inbox. A chave fica oculta por padrão; use **Mostrar chave da API** apenas quando necessário.
 
-A configuração é salva somente no perfil Windows do usuário, em `%USERPROFILE%\.servicedesk\application.properties`, e não deve ser enviada ao GitHub. Em **Atualização automática**, escolha o intervalo de sincronização e o limite de minutos que gera uma notificação.
+A configuração é salva somente no perfil Windows do usuário, em `%USERPROFILE%\.servicedesk\application.properties`, e não deve ser enviada ao GitHub. Em **Configurações → Atendimentos**, escolha o intervalo de sincronização e o limite de minutos que gera uma notificação.
 
 ## Requisitos para desenvolvimento
 
@@ -58,6 +58,10 @@ Não há envio automático ao ChatGPT. A análise depende dos formatos e limites
 
 As versões ficam em https://github.com/RafaStolf/ServiceDesk/releases/latest. Baixe **ServiceDesk-win-x64.zip**, extraia todo o conteúdo em uma pasta e abra **ServiceDesk.exe**. Não é necessário Visual Studio nem .NET instalado. Feche a versão antiga e atualize seu atalho para o novo executável. O pacote portátil não substitui automaticamente uma instalação MSIX.
 
-O botão **Verificar atualização** consulta a versão pública mais recente no GitHub, compara com a versão em execução e oferece abrir a página de download. A consulta é manual; o aplicativo não baixa nem executa atualizações automaticamente. As configurações em `%USERPROFILE%\.servicedesk` são preservadas. Na versão portátil, notificações do Windows podem não estar disponíveis; os alertas dentro do aplicativo continuam funcionando.
+Em **Configurações**, a aba **Chatwoot** reúne endereço HTTPS, conta, chave da API, usuário e Inbox. A aba **Atendimentos** controla a atualização automática da fila, intervalo e alertas. A aba **Versão** mostra a versão instalada, **Verificar atualizações** e **Atualizar**.
+
+Ao verificar, o aplicativo consulta as versões públicas no GitHub. Havendo versão nova, **Atualizar** baixa o pacote, verifica SHA-256, fecha o aplicativo, substitui os arquivos e reinicia no mesmo caminho, preservando os atalhos e configurações. Um backup permite restaurar os arquivos anteriores se a substituição ou inicialização falhar. A atualização exige Windows x64 e permissão de escrita na pasta da versão portátil. Uma instalação MSIX precisa migrar para a versão portátil; não é substituída por esse mecanismo. As versões antigas que apenas abrem a página de download precisam atualizar manualmente uma última vez.
+
+As configurações em `%USERPROFILE%\.servicedesk` são preservadas. Na versão portátil, notificações do Windows podem não estar disponíveis; os alertas dentro do aplicativo continuam funcionando.
 
 O workflow `.github/workflows/windows-release.yml` compila em Windows e publica o ZIP e seu SHA-256 após um push na `main`. Nenhum arquivo de configuração local é incluído no pacote.
