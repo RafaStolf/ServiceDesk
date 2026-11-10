@@ -32,6 +32,22 @@ public static class PacoteAtendimento
         }
     }
 
+    public static async Task SalvarPastaAsync(string pasta, ExportacaoAtendimento exportacao, CancellationToken cancellationToken)
+    {
+        using var cliente = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        foreach (var anexo in exportacao.Anexos)
+        {
+            if (!Uri.TryCreate(anexo.Url, UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps)
+                throw new InvalidOperationException($"O anexo {anexo.NomeArquivo} não possui endereço HTTPS disponível.");
+            using var resposta = await cliente.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            resposta.EnsureSuccessStatusCode();
+            await using var origem = await resposta.Content.ReadAsStreamAsync(cancellationToken);
+            await using var destino = File.Create(Path.Combine(pasta, Path.GetFileName(anexo.NomeArquivo)));
+            await origem.CopyToAsync(destino, cancellationToken);
+        }
+        await File.WriteAllTextAsync(Path.Combine(pasta, "historico.md"), exportacao.Texto, Encoding.UTF8, cancellationToken);
+    }
+
     private static async Task EscreverTextoAsync(ZipArchive pacote, string nome, string texto, CancellationToken cancellationToken)
     {
         await using var arquivo = pacote.CreateEntry(nome).Open();
