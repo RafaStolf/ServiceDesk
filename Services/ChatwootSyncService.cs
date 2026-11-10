@@ -58,7 +58,8 @@ public sealed class ChatwootSyncService : IDisposable
         var arquivos = new List<AnexoAtendimento>();
         var texto = new System.Text.StringBuilder();
         texto.AppendLine($"# Atendimento #{atendimento.Id}");
-        texto.AppendLine();\n        texto.AppendLine($"Cliente: {atendimento.Cliente}");
+        texto.AppendLine();
+        texto.AppendLine($"Cliente: {atendimento.Cliente}");
         texto.AppendLine($"Empresa: {atendimento.Empresa}");
         texto.AppendLine($"Ticket: {atendimento.Ticket}");
         texto.AppendLine($"Situação: {atendimento.SituacaoText}");
@@ -76,7 +77,8 @@ public sealed class ChatwootSyncService : IDisposable
                 ? LerTexto(remetente, "name") : null;
             var autor = nome ?? (EMensagemDoCliente(mensagem) ? "Cliente" : "Atendente / bot");
             var data = LerData(mensagem, "created_at")?.ToString("O") ?? "Data indisponível";
-            texto.AppendLine($"## {data} — {autor}");\n            texto.AppendLine();
+            texto.AppendLine($"## {data} — {autor}");
+            texto.AppendLine();
             texto.AppendLine(LerTexto(mensagem, "content") ?? "[Mensagem sem texto]");
             if (mensagem.TryGetProperty("attachments", out var anexos) && anexos.ValueKind == JsonValueKind.Array && anexos.GetArrayLength() > 0)
             {
