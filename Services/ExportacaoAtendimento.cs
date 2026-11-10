@@ -13,9 +13,9 @@ public static class PacoteAtendimento
     {
         using var cliente = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
         using var pacote = new ZipArchive(destino, ZipArchiveMode.Create, leaveOpen: true);
-        await EscreverTextoAsync(pacote, "historico.txt", exportacao.Texto, cancellationToken);
+        await EscreverTextoAsync(pacote, "historico.md", exportacao.Texto, cancellationToken);
         await EscreverTextoAsync(pacote, "COMO-USAR.txt",
-            "Extraia este ZIP. No projeto Atendimentos do ChatGPT, anexe historico.txt e os arquivos da pasta anexos no mesmo chat. " +
+            "Extraia este ZIP. No projeto Atendimentos do ChatGPT, anexe historico.md e os arquivos da pasta anexos no mesmo chat. " +
             "Copiar apenas o texto não envia as mídias. Os nomes no histórico relacionam cada arquivo à mensagem. " +
             "A aceitação e análise de cada formato dependem dos recursos e limites do ChatGPT. " +
             "Se áudio ou vídeo não for aceito, será necessário transcrever o áudio e extrair imagens relevantes do vídeo antes da análise. " +

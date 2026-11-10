@@ -408,14 +408,16 @@ public sealed partial class MainPage : Page
             var conteudo = new StackPanel { Spacing = 12 };
             conteudo.Children.Add(new TextBlock
             {
-                Text = "Revise e edite antes de compartilhar. Para incluir imagens, vídeos e áudios, salve o pacote ZIP, extraia e anexe o histórico e as mídias no ChatGPT. Copiar texto não inclui mídias. Áudio/vídeo podem exigir transcrição ou conversão.",
+                Text = "Revise o histórico e salve como Markdown (.md) para anexar no ChatGPT. Para levar também os arquivos de imagem, áudio e vídeo, marque a opção de mídias. O .md sozinho contém apenas o texto e as referências aos anexos; áudio/vídeo podem exigir conversão.",
                 TextWrapping = TextWrapping.Wrap
             });
             conteudo.Children.Add(previa);
+            var incluirMidias = new CheckBox { Content = "Incluir arquivos de mídia (gera ZIP com .md e anexos)", IsChecked = false };
+            conteudo.Children.Add(incluirMidias);
             var dialogo = new ContentDialog
             {
                 XamlRoot = XamlRoot, Title = $"Exportar atendimento #{atendimento.Id}", Content = conteudo,
-                PrimaryButtonText = "Copiar texto", SecondaryButtonText = "Salvar pacote com mídias", CloseButtonText = "Cancelar"
+                PrimaryButtonText = "Copiar texto", SecondaryButtonText = "Salvar arquivo", CloseButtonText = "Cancelar"
             };
             var resultado = await dialogo.ShowAsync();
             if (resultado == ContentDialogResult.None) return;
@@ -428,11 +430,20 @@ public sealed partial class MainPage : Page
             else
             {
                 var seletor = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"atendimento-{atendimento.Id}" };
-                seletor.FileTypeChoices.Add("Pacote com histórico e mídias", new List<string> { ".zip" });
+                if (incluirMidias.IsChecked == true)
+                    seletor.FileTypeChoices.Add("Markdown e mídias", new List<string> { ".zip" });
+                else
+                    seletor.FileTypeChoices.Add("Markdown", new List<string> { ".md" });
                 WinRT.Interop.InitializeWithWindow.Initialize(seletor,
                     WinRT.Interop.WindowNative.GetWindowHandle(((App)Application.Current).MainWindow));
                 var arquivo = await seletor.PickSaveFileAsync();
                 if (arquivo is null) return;
+                if (incluirMidias.IsChecked != true)
+                {
+                    await Windows.Storage.FileIO.WriteTextAsync(arquivo, previa.Text);
+                }
+                else
+                {
                 // Só copia o pacote concluído para o destino escolhido.
                 var temporario = Path.GetTempFileName();
                 try
@@ -448,11 +459,11 @@ public sealed partial class MainPage : Page
                     destinoFinal.SetLength(0);
                     await origem.CopyToAsync(destinoFinal);
                 }
-                finally { File.Delete(temporario); }
+                finally { File.Delete(temporario); }\n                }
             }
             StatusInfo.Severity = InfoBarSeverity.Success;
-            StatusInfo.Title = resultado == ContentDialogResult.Primary ? "Texto copiado" : "Pacote salvo";
-            StatusInfo.Message = "No ChatGPT, cole o texto; para incluir mídias, extraia o ZIP e anexe historico.txt e os anexos no mesmo chat.";
+            StatusInfo.Title = resultado == ContentDialogResult.Primary ? "Texto copiado" : "Arquivo salvo";
+            StatusInfo.Message = "No ChatGPT, cole o texto; para incluir mídias, extraia o ZIP e anexe historico.md e os anexos no mesmo chat.";
             StatusInfo.IsOpen = true;
         }
         catch (Exception ex)

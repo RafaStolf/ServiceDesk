@@ -48,11 +48,11 @@ Cada pessoa deverá configurar sua própria chave API, ID de usuário e Inbox ap
 
 ## Usar um atendimento no ChatGPT
 
-Selecione um atendimento e clique em **Usar no ChatGPT**. Revise a prévia e escolha **Copiar texto** ou **Salvar pacote com mídias**. A cópia contém somente texto. O pacote ZIP contém `historico.txt`, instruções e os anexos originais das mensagens públicas (imagens, vídeos, áudios e outros arquivos), relacionados à mensagem pelo nome. A exportação percorre todo o histórico público; notas privadas e eventos ficam de fora.
+Selecione um atendimento e clique em **Usar no ChatGPT**. Revise o histórico completo na prévia editável. **Copiar texto** copia o conteúdo; **Salvar arquivo** exporta um arquivo **.md (Markdown)**, pronto para anexar em um chat do projeto Atendimentos.
 
-Extraia o ZIP e anexe o histórico e as mídias em um chat do projeto **Atendimentos**. O envio é manual. A aceitação e análise de formatos e tamanhos depende dos recursos disponíveis no ChatGPT; preservar o original não garante que ele seja interpretado. Áudio/vídeo não aceitos precisam de transcrição e/ou extração de imagens em uma etapa adicional; o ServiceDesk ainda não faz essa conversão.
+O Markdown contém a identificação, situação, datas e mensagens públicas em ordem cronológica, com referências aos anexos. Ele não incorpora os arquivos de imagem, áudio ou vídeo. Para levá-los junto, marque **Incluir arquivos de mídia**: nesse caso, o aplicativo gera um ZIP com `historico.md`, instruções e os anexos originais. Extraia e anexe o histórico e as mídias no mesmo chat. Notas privadas e eventos são excluídos.
 
-Downloads utilizam os endereços HTTPS fornecidos pelo Chatwoot, sem enviar a chave da API ao servidor de mídia. Se algum anexo estiver indisponível, a exportação informa erro e não copia um pacote incompleto ao destino. Não há alteração da conversa no Chatwoot.
+Não há envio automático ao ChatGPT. A análise depende dos formatos e limites disponíveis; áudio e vídeo podem exigir transcrição ou conversão, que o ServiceDesk ainda não realiza. Se uma mídia estiver indisponível, o pacote não é copiado ao destino como se estivesse completo.
 
 ## Download e atualização (Windows x64)
 
