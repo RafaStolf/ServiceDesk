@@ -36,6 +36,13 @@ jobs:
           A versão portátil exibe alertas dentro do aplicativo; notificações do Windows podem não estar disponíveis.
           Use Verificar atualização para consultar novas versões.
           "@ | Set-Content publish/LEIA-ME.txt -Encoding utf8
+          $process = Start-Process -FilePath "$env:GITHUB_WORKSPACE\publish\ServiceDesk.exe" -WorkingDirectory "$env:GITHUB_WORKSPACE\publish" -PassThru
+          Start-Sleep -Seconds 10
+          if ($process.HasExited) {
+            Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-2)} -ErrorAction SilentlyContinue | Select-Object -First 10 TimeCreated, Message | Format-List
+            throw "ServiceDesk encerrou ao iniciar (código $($process.ExitCode))."
+          }
+          Stop-Process -Id $process.Id
           Compress-Archive -Path publish/* -DestinationPath ServiceDesk-win-x64.zip
           Get-FileHash ServiceDesk-win-x64.zip -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  ServiceDesk-win-x64.zip" } | Set-Content SHA256SUMS.txt
           "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
