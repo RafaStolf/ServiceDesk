@@ -32,7 +32,7 @@ public static class PacoteAtendimento
         }
     }
 
-    public static async Task SalvarPastaAsync(string pasta, ExportacaoAtendimento exportacao, CancellationToken cancellationToken)
+    public static async Task SalvarPastaAsync(string pasta, ExportacaoAtendimento exportacao, CancellationToken cancellationToken, string nomeArquivo = "historico.md")
     {
         using var cliente = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
         foreach (var anexo in exportacao.Anexos)
@@ -45,7 +45,7 @@ public static class PacoteAtendimento
             await using var destino = File.Create(Path.Combine(pasta, Path.GetFileName(anexo.NomeArquivo)));
             await origem.CopyToAsync(destino, cancellationToken);
         }
-        await File.WriteAllTextAsync(Path.Combine(pasta, "historico.md"), exportacao.Texto, Encoding.UTF8, cancellationToken);
+        await File.WriteAllTextAsync(Path.Combine(pasta, nomeArquivo), exportacao.Texto, Encoding.UTF8, cancellationToken);
     }
 
     private static async Task EscreverTextoAsync(ZipArchive pacote, string nome, string texto, CancellationToken cancellationToken)
