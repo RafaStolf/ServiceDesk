@@ -90,9 +90,10 @@ public sealed class ChatwootSyncService : IDisposable
                     var extensao = Uri.TryCreate(url, UriKind.Absolute, out var uri)
                         ? Path.GetExtension(uri.AbsolutePath) : "";
                     if (extensao.Length > 10 || extensao.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '.')) extensao = "";
-                    var nomeArquivo = $"anexos/{indice:D3}-mensagem-{mensagem.GetProperty("id").GetInt64()}{extensao}";
+                    var nomeArquivo = $"{indice:D3}-mensagem-{mensagem.GetProperty("id").GetInt64()}{extensao}";
                     arquivos.Add(new AnexoAtendimento(nomeArquivo, url, tipo));
-                    texto.AppendLine($"[Anexo: {nomeArquivo} | tipo: {tipo}]");
+                    var descricao = tipo switch { "image" => "uma imagem", "video" => "um vídeo", "audio" => "um áudio", _ => "um arquivo" };
+                    texto.AppendLine($"Foi enviado {descricao}. Arquivo: [{nomeArquivo}]({nomeArquivo})");
                 }
             }
             texto.AppendLine();
