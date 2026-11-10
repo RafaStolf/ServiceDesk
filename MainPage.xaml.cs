@@ -313,16 +313,15 @@ public sealed partial class MainPage : Page
                         WinRT.Interop.WindowNative.GetWindowHandle(((App)Application.Current).MainWindow));
                     var pasta = await seletor.PickSingleFolderAsync();
                     if (pasta is null) return;
-                    var nome = $"Atendimento-{atendimento.Id}-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid().ToString("N")[..6]}";
-                    var destino = Path.Combine(pasta.Path, nome);
-                    Directory.CreateDirectory(destino);
+                    var pastaAtendimento = await pasta.CreateFolderAsync($"Atendimento-{atendimento.Id}", Windows.Storage.CreationCollisionOption.GenerateUniqueName);
+                    var destino = pastaAtendimento.Path;
                     try
                     {
                         StatusInfo.Title = "Salvando histórico e mídias";
                         StatusInfo.Message = $"Baixando {exportacao.Anexos.Count} anexo(s)...";
                         StatusInfo.Severity = InfoBarSeverity.Informational;
                         StatusInfo.IsOpen = true;
-                        await PacoteAtendimento.SalvarPastaAsync(destino, exportacao with { Texto = previa.Text }, CancellationToken.None);
+                        await PacoteAtendimento.SalvarPastaAsync(destino, exportacao with { Texto = previa.Text }, CancellationToken.None, $"Atendimento-{atendimento.Id}.md");
                     }
                     catch
                     {
@@ -332,7 +331,7 @@ public sealed partial class MainPage : Page
                 }
                 else
                 {
-                    var seletor = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"atendimento-{atendimento.Id}" };
+                    var seletor = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"Atendimento-{atendimento.Id}" };
                     seletor.FileTypeChoices.Add("Markdown", new List<string> { ".md" });
                     WinRT.Interop.InitializeWithWindow.Initialize(seletor,
                         WinRT.Interop.WindowNative.GetWindowHandle(((App)Application.Current).MainWindow));
@@ -343,7 +342,9 @@ public sealed partial class MainPage : Page
             }
             StatusInfo.Severity = InfoBarSeverity.Success;
             StatusInfo.Title = resultado == ContentDialogResult.Primary ? "Texto copiado" : "Arquivo salvo";
-            StatusInfo.Message = "No ChatGPT, anexe o .md e os arquivos de mídia salvos na pasta do atendimento. Copiar texto não transfere os arquivos.";
+            StatusInfo.Message = resultado == ContentDialogResult.Primary
+                ? $"Texto do atendimento #{atendimento.Id} copiado."
+                : $"Atendimento #{atendimento.Id} salvo com sucesso.";
             StatusInfo.IsOpen = true;
         }
         catch (Exception ex)
