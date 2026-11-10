@@ -35,7 +35,7 @@ public sealed partial class MainPage
             return painel;
         }
         PivotItem Aba(string nome, StackPanel painel) => new() { Header = nome, Content = new ScrollViewer { Content = painel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
-        var abas = new Pivot { Width = 560, Height = 440 };
+        var abas = new Pivot { Width = 480, Height = 400 };
         abas.Items.Add(Aba("Chatwoot", Painel(url, conta, chave, mostrar, usuario, inbox)));
         abas.Items.Add(Aba("Atendimentos", Painel(ativa, intervalo, notificacoes, limite)));
         abas.Items.Add(Aba("Versão", Painel(status, verificar, atualizar, progresso, informacao)));
