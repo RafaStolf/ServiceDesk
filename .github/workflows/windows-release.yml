@@ -1,7 +1,7 @@
 name: Publicar ServiceDesk para Windows
 on:
   push:
-    branches: [main, feat/distribuicao-atualizacoes, feat/configuracoes-atualizador]
+    branches: [main, feat/distribuicao-atualizacoes, feat/configuracoes-atualizador, feat/segundo-plano-windows]
   workflow_dispatch:
 concurrency:
   group: windows-${{ github.ref }}
@@ -48,6 +48,7 @@ jobs:
             throw "ServiceDesk encerrou ao iniciar (código $($process.ExitCode))."
           }
           Stop-Process -Id $process.Id
+          & ./Scripts/Testar-SegundoPlano.ps1 -PackagePath "$env:GITHUB_WORKSPACE/publish"
           & ./Scripts/Testar-Atualizador.ps1 -PackagePath "$env:GITHUB_WORKSPACE/publish"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Compress-Archive -Path publish/* -DestinationPath ServiceDesk-win-x64.zip
@@ -68,7 +69,7 @@ jobs:
           @"
           Aplicativo portátil para Windows x64. Baixe ServiceDesk-win-x64.zip, extraia todo o conteúdo e abra ServiceDesk.exe. Não é necessário instalar ferramentas de desenvolvimento.
           
-          Inclui exportação do histórico com imagens, vídeos e áudios originais, e Configurações com verificação e instalação de atualizações.
+          Inclui exportação do histórico com imagens, vídeos e áudios originais, Configurações com instalação de atualizações, execução em segundo plano e início com Windows.
           Áudio e vídeo não são transcritos ou convertidos automaticamente.
           Configurações existentes no perfil do Windows são preservadas. Notificações do Windows podem não estar disponíveis na versão portátil; os alertas dentro do app permanecem.
           Compilado pelo GitHub Actions; interface e downloads de anexos reais ainda precisam de validação de uso.

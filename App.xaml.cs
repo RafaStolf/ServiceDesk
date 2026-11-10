@@ -1,50 +1,64 @@
-using Windows.ApplicationModel;
-using Windows.ApplicationModel.Activation;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
-using Microsoft.UI.Xaml.Shapes;
-
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
+using ServiceDesk.Services;
 
 namespace ServiceDesk;
 
-/// <summary>
-/// Provides application-specific behavior to supplement the default Application class.
-/// </summary>
 public partial class App : Application
 {
-    private Window? _window;
+    private MainWindow? _window;
+    private Mutex? _instancia;
+    private EventWaitHandle? _abrir;
+    private RegisteredWaitHandle? _espera;
+    private bool _saindo;
     internal Window MainWindow => _window ?? throw new InvalidOperationException("Janela indisponível.");
-    
-    /// <summary>
-    /// Initializes the singleton application object.  This is the first line of authored code
-    /// executed, and as such is the logical equivalent of main() or WinMain().
-    /// </summary>
+
     public App()
     {
         UnhandledException += (_, e) =>
         {
             if (Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1")
-                File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ServiceDesk-inicializacao.log"), e.Exception.ToString() + Environment.NewLine);
+                File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ServiceDesk-inicializacao.log"), e.Exception + Environment.NewLine);
         };
         InitializeComponent();
     }
 
-    /// <summary>
-    /// Invoked when the application is launched.
-    /// </summary>
-    /// <param name="args">Details about the launch request and process.</param>
-    protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+    protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        var diagnostico = Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1";
+        var nome = @"Local\ServiceDesk";
+        if (diagnostico) nome += "-Teste-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(AppContext.BaseDirectory)))[..16];
+        _abrir = new EventWaitHandle(false, EventResetMode.AutoReset, nome + "-Abrir");
+        _instancia = new Mutex(true, nome, out var primeira);
+        if (!primeira)
+        {
+            // Um segundo início pelo Windows não deve abrir outra janela.
+            if (!Environment.GetCommandLineArgs().Contains("--background")) _abrir.Set();
+            _instancia.Dispose();
+            _abrir.Dispose();
+            Exit();
+            return;
+        }
+        try { InicializacaoWindowsService.Inicializar(); }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        { /* As configurações permitem tentar habilitar novamente sem impedir a abertura. */ }
         _window = new MainWindow();
+        _espera = ThreadPool.RegisterWaitForSingleObject(_abrir, (_, _) => _window.DispatcherQueue.TryEnqueue(() => _window.Mostrar()), null, Timeout.Infinite, false);
+        _window.Closed += (_, _) => Sair();
         _window.Activate();
+        if (Environment.GetCommandLineArgs().Contains("--background")) _window.Ocultar();
+        if (diagnostico)
+            File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"ServiceDesk-window-{Environment.ProcessId}.txt"), WinRT.Interop.WindowNative.GetWindowHandle(_window).ToString());
+    }
+
+    internal void Sair()
+    {
+        if (_saindo) return;
+        _saindo = true;
+        _window?.Encerrar();
+        _espera?.Unregister(null);
+        _abrir?.Dispose();
+        _instancia?.ReleaseMutex();
+        _instancia?.Dispose();
+        Exit();
     }
 }

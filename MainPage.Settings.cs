@@ -19,6 +19,9 @@ public sealed partial class MainPage
         mostrar.Toggled += (_, _) => chave.PasswordRevealMode = mostrar.IsOn ? PasswordRevealMode.Visible : PasswordRevealMode.Hidden;
         var usuario = new TextBox { Header = "ID do usuário", Text = Valor("chatwoot.user-id") };
         var inbox = new TextBox { Header = "ID do Inbox", Text = Valor("chatwoot.inbox-id") };
+        var iniciarWindows = new ToggleSwitch { Header = "Iniciar com o Windows", IsOn = InicializacaoWindowsService.IniciarComWindows };
+        var segundoPlano = new ToggleSwitch { Header = "Continuar em segundo plano ao fechar a janela", IsOn = InicializacaoWindowsService.ManterEmSegundoPlano };
+        var instrucaoGeral = new TextBlock { Text = "Ao entrar no Windows, o ServiceDesk inicia junto ao relógio. Clique no ícone para abrir. Use o menu do ícone → Sair para encerrar completamente.", TextWrapping = TextWrapping.Wrap };
         var ativa = new ToggleSwitch { Header = "Atualizar atendimentos automaticamente", IsOn = _atualizacaoAutomaticaAtiva };
         var intervalo = new NumberBox { Header = "Intervalo de atualização (minutos)", Minimum = 1, Maximum = 120, Value = _intervaloAtualizacaoMinutos, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline };
         var notificacoes = new ToggleSwitch { Header = "Alertar atendimentos sem interação", IsOn = _notificacoesAtivas };
@@ -36,6 +39,7 @@ public sealed partial class MainPage
         }
         PivotItem Aba(string nome, StackPanel painel) => new() { Header = nome, Content = new ScrollViewer { Content = painel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
         var abas = new Pivot { Width = 480, Height = 400 };
+        abas.Items.Add(Aba("Geral", Painel(iniciarWindows, segundoPlano, instrucaoGeral)));
         abas.Items.Add(Aba("Chatwoot", Painel(url, conta, chave, mostrar, usuario, inbox)));
         abas.Items.Add(Aba("Atendimentos", Painel(ativa, intervalo, notificacoes, limite)));
         abas.Items.Add(Aba("Versão", Painel(status, verificar, atualizar, progresso, informacao)));
@@ -68,7 +72,7 @@ public sealed partial class MainPage
             {
                 await new AtualizacaoAplicativoService().PrepararAsync(disponivel, CancellationToken.None);
                 ocupado = false;
-                Application.Current.Exit();
+                ((App)Application.Current).Sair();
             }
             catch (Exception ex) { status.Text = $"Não foi possível atualizar: {ex.Message}"; }
             finally { ocupado = false; progresso.IsActive = false; verificar.IsEnabled = dialogo.IsPrimaryButtonEnabled = true; atualizar.IsEnabled = disponivel is not null; }
@@ -84,6 +88,7 @@ public sealed partial class MainPage
             { erro.Text = "Informe os intervalos em minutos."; args.Cancel = true; return; }
             try
             {
+                InicializacaoWindowsService.Configurar(iniciarWindows.IsOn, segundoPlano.IsOn);
                 if (temChatwoot) ConfiguracaoLocal.SalvarPropriedades(new Dictionary<string, string>
                 {
                     ["chatwoot.base-url"] = url.Text.Trim().TrimEnd('/'), ["chatwoot.account-id"] = conta.Text.Trim(),
