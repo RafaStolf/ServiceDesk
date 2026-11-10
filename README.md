@@ -53,3 +53,11 @@ Selecione um atendimento e clique em **Usar no ChatGPT**. Revise a prévia e esc
 Extraia o ZIP e anexe o histórico e as mídias em um chat do projeto **Atendimentos**. O envio é manual. A aceitação e análise de formatos e tamanhos depende dos recursos disponíveis no ChatGPT; preservar o original não garante que ele seja interpretado. Áudio/vídeo não aceitos precisam de transcrição e/ou extração de imagens em uma etapa adicional; o ServiceDesk ainda não faz essa conversão.
 
 Downloads utilizam os endereços HTTPS fornecidos pelo Chatwoot, sem enviar a chave da API ao servidor de mídia. Se algum anexo estiver indisponível, a exportação informa erro e não copia um pacote incompleto ao destino. Não há alteração da conversa no Chatwoot.
+
+## Download e atualização (Windows x64)
+
+As versões ficam em https://github.com/RafaStolf/ServiceDesk/releases/latest. Baixe **ServiceDesk-win-x64.zip**, extraia todo o conteúdo em uma pasta e abra **ServiceDesk.exe**. Não é necessário Visual Studio nem .NET instalado. Feche a versão antiga e atualize seu atalho para o novo executável. O pacote portátil não substitui automaticamente uma instalação MSIX.
+
+O botão **Verificar atualização** consulta a versão pública mais recente no GitHub, compara com a versão em execução e oferece abrir a página de download. A consulta é manual; o aplicativo não baixa nem executa atualizações automaticamente. As configurações em `%USERPROFILE%\.servicedesk` são preservadas. Na versão portátil, notificações do Windows podem não estar disponíveis; os alertas dentro do aplicativo continuam funcionando.
+
+O workflow `.github/workflows/windows-release.yml` compila em Windows e publica o ZIP e seu SHA-256 após um push na `main`. Nenhum arquivo de configuração local é incluído no pacote.
