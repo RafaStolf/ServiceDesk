@@ -3,6 +3,9 @@ on:
   push:
     branches: [main, feat/distribuicao-atualizacoes]
   workflow_dispatch:
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -23,7 +26,8 @@ jobs:
           msbuild ServiceDesk.csproj /restore /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:WindowsPackageType=None /p:WindowsAppSDKSelfContained=true /p:SelfContained=true /p:EnableMsixTooling=false /p:EnableWinAppRunSupport=false /p:PublishSingleFile=false /p:PublishTrimmed=false /p:PublishReadyToRun=false /p:Version=$version /p:AssemblyVersion=$version /p:FileVersion=$version /p:PublishDir="$env:GITHUB_WORKSPACE\publish\"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (!(Test-Path publish/ServiceDesk.exe)) { throw "Executável não foi gerado." }
-          Copy-Item Assets/AppIcon.ico publish/Assets/AppIcon.ico -Force
+          New-Item -ItemType Directory -Path publish/Assets -Force | Out-Null
+          Copy-Item Assets/* publish/Assets/ -Force
           @"
           ServiceDesk $version - Windows x64
           Extraia todo o ZIP em uma nova pasta e abra ServiceDesk.exe.
