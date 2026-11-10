@@ -26,10 +26,8 @@
                 <TextBlock Text="Controle de atendimentos do Chatwoot. Priorize sua próxima interação." Style="{StaticResource BodyTextBlockStyle}" />
             </StackPanel>
             <CommandBar Grid.Column="1" DefaultLabelPosition="Right">
-                <AppBarButton x:Name="VerificarAtualizacaoButton" Icon="Download" Label="Verificar atualização" Click="VerificarAtualizacaoButton_Click" />
+                <AppBarButton Icon="Setting" Label="Configurações" Click="ConfiguracoesButton_Click" />
                 <AppBarButton x:Name="AtualizarButton" Icon="Refresh" Label="Atualizar" Click="AtualizarButton_Click" />
-                <AppBarButton Icon="ContactInfo" Label="Chatwoot" Click="ConfiguracaoChatwootButton_Click" />
-                <AppBarButton x:Name="AtualizacaoAutomaticaButton" Icon="Setting" Label="Atualização automática" Click="AtualizacaoAutomaticaButton_Click" />
                 <AppBarButton x:Name="ExportarButton" Icon="Copy" Label="Usar no ChatGPT" Click="ExportarButton_Click" IsEnabled="False" />
                 <AppBarButton x:Name="AbrirButton" Icon="OpenFile" Label="Abrir no Chatwoot" Click="AbrirButton_Click" IsEnabled="False" />
             </CommandBar>
