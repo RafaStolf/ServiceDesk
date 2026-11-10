@@ -50,7 +50,7 @@ Cada pessoa deverá configurar sua própria chave API, ID de usuário e Inbox ap
 
 Selecione um atendimento e clique em **Usar no ChatGPT**. Revise o histórico completo na prévia editável. **Copiar texto** copia o conteúdo; **Salvar arquivo** exporta um arquivo **.md (Markdown)**, pronto para anexar em um chat do projeto Atendimentos.
 
-O Markdown contém a identificação, situação, datas e mensagens públicas em ordem cronológica, com referências aos anexos. Ele não incorpora os arquivos de imagem, áudio ou vídeo. Para levá-los junto, marque **Incluir arquivos de mídia**: nesse caso, o aplicativo gera um ZIP com `historico.md`, instruções e os anexos originais. Extraia e anexe o histórico e as mídias no mesmo chat. Notas privadas e eventos são excluídos.
+O Markdown contém a identificação, situação, datas e mensagens públicas em ordem cronológica, com referências aos anexos. Ele não incorpora os arquivos de imagem, áudio ou vídeo. Para levá-los junto, mantenha marcada a opção de mídias e escolha uma pasta. O aplicativo cria uma subpasta do atendimento contendo `historico.md` e os anexos originais juntos, sem ZIP. No horário de cada mensagem, o histórico informa que foi enviada uma imagem, vídeo ou áudio e inclui o nome/link do arquivo correspondente. Anexe o histórico e as mídias no mesmo chat. Notas privadas e eventos são excluídos.
 
 Não há envio automático ao ChatGPT. A análise depende dos formatos e limites disponíveis; áudio e vídeo podem exigir transcrição ou conversão, que o ServiceDesk ainda não realiza. Se uma mídia estiver indisponível, o pacote não é copiado ao destino como se estivesse completo.
 
