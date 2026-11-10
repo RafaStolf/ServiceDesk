@@ -408,11 +408,11 @@ public sealed partial class MainPage : Page
             var conteudo = new StackPanel { Spacing = 12 };
             conteudo.Children.Add(new TextBlock
             {
-                Text = "Revise o histórico e salve como Markdown (.md) para anexar no ChatGPT. Para levar também os arquivos de imagem, áudio e vídeo, marque a opção de mídias. O .md sozinho contém apenas o texto e as referências aos anexos; áudio/vídeo podem exigir conversão.",
+                Text = "Revise o histórico e salve como Markdown (.md) para anexar no ChatGPT. Com a opção de mídias marcada, escolha uma pasta para salvar o .md e os arquivos juntos. O .md sozinho contém apenas o texto e as referências aos anexos; áudio/vídeo podem exigir conversão.",
                 TextWrapping = TextWrapping.Wrap
             });
             conteudo.Children.Add(previa);
-            var incluirMidias = new CheckBox { Content = "Incluir arquivos de mídia (gera ZIP com .md e anexos)", IsChecked = false };
+            var incluirMidias = new CheckBox { Content = "Salvar também imagens, vídeos e áudios na mesma pasta do .md", IsChecked = true };
             conteudo.Children.Add(incluirMidias);
             var dialogo = new ContentDialog
             {
@@ -429,42 +429,45 @@ public sealed partial class MainPage : Page
             }
             else
             {
-                var seletor = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"atendimento-{atendimento.Id}" };
                 if (incluirMidias.IsChecked == true)
-                    seletor.FileTypeChoices.Add("Markdown e mídias", new List<string> { ".zip" });
-                else
-                    seletor.FileTypeChoices.Add("Markdown", new List<string> { ".md" });
-                WinRT.Interop.InitializeWithWindow.Initialize(seletor,
-                    WinRT.Interop.WindowNative.GetWindowHandle(((App)Application.Current).MainWindow));
-                var arquivo = await seletor.PickSaveFileAsync();
-                if (arquivo is null) return;
-                if (incluirMidias.IsChecked != true)
                 {
-                    await Windows.Storage.FileIO.WriteTextAsync(arquivo, previa.Text);
+                    var seletor = new Windows.Storage.Pickers.FolderPicker();
+                    seletor.FileTypeFilter.Add("*");
+                    WinRT.Interop.InitializeWithWindow.Initialize(seletor,
+                        WinRT.Interop.WindowNative.GetWindowHandle(((App)Application.Current).MainWindow));
+                    var pasta = await seletor.PickSingleFolderAsync();
+                    if (pasta is null) return;
+                    var nome = $"Atendimento-{atendimento.Id}-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid().ToString("N")[..6]}";
+                    var destino = Path.Combine(pasta.Path, nome);
+                    Directory.CreateDirectory(destino);
+                    try
+                    {
+                        StatusInfo.Title = "Salvando histórico e mídias";
+                        StatusInfo.Message = $"Baixando {exportacao.Anexos.Count} anexo(s)...";
+                        StatusInfo.Severity = InfoBarSeverity.Informational;
+                        StatusInfo.IsOpen = true;
+                        await PacoteAtendimento.SalvarPastaAsync(destino, exportacao with { Texto = previa.Text }, CancellationToken.None);
+                    }
+                    catch
+                    {
+                        Directory.Delete(destino, recursive: true);
+                        throw;
+                    }
                 }
                 else
                 {
-                    // Só copia o pacote concluído para o destino escolhido.
-                    var temporario = Path.GetTempFileName();
-                    try
-                    {
-                        StatusInfo.Title = "Baixando anexos";
-                        StatusInfo.Message = $"Preparando {exportacao.Anexos.Count} anexo(s)...";
-                        StatusInfo.Severity = InfoBarSeverity.Informational;
-                        StatusInfo.IsOpen = true;
-                        await using (var destino = File.Create(temporario))
-                            await PacoteAtendimento.SalvarAsync(destino, exportacao with { Texto = previa.Text }, CancellationToken.None);
-                        await using var origem = File.OpenRead(temporario);
-                        await using var destinoFinal = await arquivo.OpenStreamForWriteAsync();
-                        destinoFinal.SetLength(0);
-                        await origem.CopyToAsync(destinoFinal);
-                    }
-                    finally { File.Delete(temporario); }
+                    var seletor = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"atendimento-{atendimento.Id}" };
+                    seletor.FileTypeChoices.Add("Markdown", new List<string> { ".md" });
+                    WinRT.Interop.InitializeWithWindow.Initialize(seletor,
+                        WinRT.Interop.WindowNative.GetWindowHandle(((App)Application.Current).MainWindow));
+                    var arquivo = await seletor.PickSaveFileAsync();
+                    if (arquivo is null) return;
+                    await Windows.Storage.FileIO.WriteTextAsync(arquivo, previa.Text);
                 }
             }
             StatusInfo.Severity = InfoBarSeverity.Success;
             StatusInfo.Title = resultado == ContentDialogResult.Primary ? "Texto copiado" : "Arquivo salvo";
-            StatusInfo.Message = "No ChatGPT, cole o texto; para incluir mídias, extraia o ZIP e anexe historico.md e os anexos no mesmo chat.";
+            StatusInfo.Message = "No ChatGPT, anexe o .md e os arquivos de mídia salvos na pasta do atendimento. Copiar texto não transfere os arquivos.";
             StatusInfo.IsOpen = true;
         }
         catch (Exception ex)
