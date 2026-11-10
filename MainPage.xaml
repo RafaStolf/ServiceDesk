@@ -26,6 +26,7 @@
                 <TextBlock Text="Controle de atendimentos do Chatwoot. Priorize sua próxima interação." Style="{StaticResource BodyTextBlockStyle}" />
             </StackPanel>
             <CommandBar Grid.Column="1" DefaultLabelPosition="Right">
+                <AppBarButton x:Name="VerificarAtualizacaoButton" Icon="Download" Label="Verificar atualização" Click="VerificarAtualizacaoButton_Click" />
                 <AppBarButton x:Name="AtualizarButton" Icon="Refresh" Label="Atualizar" Click="AtualizarButton_Click" />
                 <AppBarButton Icon="ContactInfo" Label="Chatwoot" Click="ConfiguracaoChatwootButton_Click" />
                 <AppBarButton x:Name="AtualizacaoAutomaticaButton" Icon="Setting" Label="Atualização automática" Click="AtualizacaoAutomaticaButton_Click" />

@@ -7,7 +7,7 @@ public sealed record ConfiguracaoAtualizacao(bool Ativa, int IntervaloMinutos, b
     public static readonly ConfiguracaoAtualizacao Padrao = new(true, 5, true, 10);
 }
 
-/// <summary>Armazena preferências de atualização por usuário, dentro do pacote Windows.</summary>
+/// <summary>Armazena preferências de atualização por usuário, no pacote Windows ou no perfil local da versão portátil.</summary>
 public sealed class ConfiguracaoAtualizacaoService
 {
     private const string AtualizacaoAtivaKey = "atualizacao_automatica_ativa";
@@ -17,7 +17,19 @@ public sealed class ConfiguracaoAtualizacaoService
 
     public ConfiguracaoAtualizacao Carregar()
     {
-        var valores = ApplicationData.Current.LocalSettings.Values;
+        var valores = TentarValoresDoPacote();
+        if (valores is null)
+        {
+            try
+            {
+                return Normalizar(System.Text.Json.JsonSerializer.Deserialize<ConfiguracaoAtualizacao>(File.ReadAllText(ArquivoPortatil))
+                    ?? ConfiguracaoAtualizacao.Padrao);
+            }
+            catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+            {
+                return ConfiguracaoAtualizacao.Padrao;
+            }
+        }
         var ativa = valores.TryGetValue(AtualizacaoAtivaKey, out var valorAtiva)
             ? valorAtiva as bool? ?? ConfiguracaoAtualizacao.Padrao.Ativa
             : ConfiguracaoAtualizacao.Padrao.Ativa;
@@ -33,10 +45,34 @@ public sealed class ConfiguracaoAtualizacaoService
 
     public void Salvar(ConfiguracaoAtualizacao configuracao)
     {
-        var valores = ApplicationData.Current.LocalSettings.Values;
+        var valores = TentarValoresDoPacote();
+        if (valores is null)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(ArquivoPortatil)!);
+            var temporario = ArquivoPortatil + ".tmp";
+            File.WriteAllText(temporario, System.Text.Json.JsonSerializer.Serialize(Normalizar(configuracao)));
+            File.Move(temporario, ArquivoPortatil, overwrite: true);
+            return;
+        }
         valores[AtualizacaoAtivaKey] = configuracao.Ativa;
         valores[IntervaloKey] = Math.Clamp(configuracao.IntervaloMinutos, 1, 120);
         valores[NotificacoesAtivasKey] = configuracao.NotificacoesAtivas;
         valores[LimiteNotificacaoKey] = Math.Clamp(configuracao.LimiteNotificacaoMinutos, 1, 1440);
+    }
+
+    private static string ArquivoPortatil => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".servicedesk", "preferencias.json");
+
+    private static ConfiguracaoAtualizacao Normalizar(ConfiguracaoAtualizacao valor) => valor with
+    {
+        IntervaloMinutos = Math.Clamp(valor.IntervaloMinutos, 1, 120),
+        LimiteNotificacaoMinutos = Math.Clamp(valor.LimiteNotificacaoMinutos, 1, 1440)
+    };
+
+    private static IDictionary<string, object>? TentarValoresDoPacote()
+    {
+        try { return ApplicationData.Current.LocalSettings.Values; }
+        catch (InvalidOperationException) { return null; }
+        catch (System.Runtime.InteropServices.COMException) { return null; }
     }
 }

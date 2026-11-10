@@ -30,6 +30,11 @@ public partial class App : Application
     /// </summary>
     public App()
     {
+        UnhandledException += (_, e) =>
+        {
+            if (Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1")
+                File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ServiceDesk-inicializacao.log"), e.Exception.ToString() + Environment.NewLine);
+        };
         InitializeComponent();
     }
 
