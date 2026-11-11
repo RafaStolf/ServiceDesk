@@ -186,18 +186,13 @@ public sealed class ChatwootSyncService : IDisposable
 
             // Atividade pública inclui mensagens de contatos, agentes e bots; exclui notas privadas e eventos.
             ultimaAtividade ??= mensagens.Where(EMensagemPublica).Select(mensagem => LerData(mensagem, "created_at"))
-                .Where(data => data is not null).Select(data => data!.Value).DefaultIfEmpty().Max();
-            if (ultimaAtividade == default) ultimaAtividade = null;
+                .Max();
 
             ultimaMinha ??= mensagens.Where(mensagem => EMensagemDoAgente(mensagem, usuarioId))
-                .Select(mensagem => LerData(mensagem, "created_at")).Where(data => data is not null)
-                .Select(data => data!.Value).DefaultIfEmpty().Max();
-            if (ultimaMinha == default) ultimaMinha = null;
+                .Select(mensagem => LerData(mensagem, "created_at")).Max();
 
             ultimaCliente ??= mensagens.Where(EMensagemDoContato)
-                .Select(mensagem => LerData(mensagem, "created_at")).Where(data => data is not null)
-                .Select(data => data!.Value).DefaultIfEmpty().Max();
-            if (ultimaCliente == default) ultimaCliente = null;
+                .Select(mensagem => LerData(mensagem, "created_at")).Max();
 
             if (ultimaMinha is not null && ultimaCliente is not null) break;
 
