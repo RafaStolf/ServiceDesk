@@ -1,73 +1,48 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<Page
-    x:Class="ServiceDesk.MainPage"
+<Page x:Class="ServiceDesk.MainPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    Loaded="Page_Loaded"
-    mc:Ignorable="d">
+    Loaded="Page_Loaded">
+    <Page.Resources>
+        <Style x:Key="AtendimentoCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush"><Setter.Value><SolidColorBrush Color="Gray" Opacity="0.25" /></Setter.Value></Setter>
+        </Style>
+    </Page.Resources>
     <Grid Padding="20" RowSpacing="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-
-        <Grid ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Spacing="4">
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <StackPanel Spacing="2">
                 <TextBlock Text="ServiceDesk" Style="{StaticResource TitleTextBlockStyle}" />
-                <TextBlock Text="Controle de atendimentos do Chatwoot. Priorize sua próxima interação." Style="{StaticResource BodyTextBlockStyle}" />
+                <TextBlock x:Name="SincronizacaoText" Text="Preparando sua fila…" TextWrapping="Wrap" Opacity="0.7" />
             </StackPanel>
-            <CommandBar Grid.Column="1" DefaultLabelPosition="Right">
-                <AppBarButton Icon="Setting" Label="Configurações" Click="ConfiguracoesButton_Click" />
-                <AppBarButton x:Name="AtualizarButton" Icon="Refresh" Label="Atualizar" Click="AtualizarButton_Click" />
-                <AppBarButton x:Name="ExportarButton" Icon="Copy" Label="Usar no ChatGPT" Click="ExportarButton_Click" IsEnabled="False" />
-                <AppBarButton x:Name="AbrirButton" Icon="OpenFile" Label="Abrir no Chatwoot" Click="AbrirButton_Click" IsEnabled="False" />
+            <CommandBar Grid.Column="1" DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" Background="Transparent">
+                <AppBarButton Icon="Setting" Label="Configurações" ToolTipService.ToolTip="Configurações" Click="ConfiguracoesButton_Click" />
+                <AppBarButton x:Name="AtualizarButton" Icon="Refresh" Label="Atualizar" ToolTipService.ToolTip="Atualizar fila" Click="AtualizarButton_Click" />
             </CommandBar>
         </Grid>
-
-        <InfoBar x:Name="StatusInfo" Grid.Row="1" IsOpen="True" IsClosable="False" Severity="Informational" Title="Preparando" Message="Verificando conexões..." />
-
-        <Grid Grid.Row="2" ColumnSpacing="10">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="170" />
-                <ColumnDefinition Width="150" />
-            </Grid.ColumnDefinitions>
-            <Border Padding="10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8">
-                <StackPanel Spacing="1"><TextBlock Text="EM ABERTO" Style="{StaticResource CaptionTextBlockStyle}" /><TextBlock x:Name="AbertosCountText" Text="0" FontSize="26" FontWeight="SemiBold" /></StackPanel>
-            </Border>
-            <Border Grid.Column="1" Padding="10" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="8">
-                <StackPanel Spacing="1"><TextBlock Text="ADIADOS" Style="{StaticResource CaptionTextBlockStyle}" /><TextBlock x:Name="AdiadosCountText" Text="0" FontSize="26" FontWeight="SemiBold" /></StackPanel>
-            </Border>
-        </Grid>
-
-        <TabView x:Name="FilaTabs" Grid.Row="3" IsAddTabButtonVisible="False" SelectionChanged="FilaTabs_SelectionChanged">
-            <TabViewItem Header="Em aberto" Tag="Em aberto" IsClosable="False" IsSelected="True" />
-            <TabViewItem Header="Adiados" Tag="Adiado" IsClosable="False" />
-            <TabViewItem Header="Todos" Tag="Todos" IsClosable="False" />
-        </TabView>
-
-        <Grid Grid.Row="4" RowSpacing="12">
-            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-            <Grid ColumnSpacing="12">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="260" /></Grid.ColumnDefinitions>
-                <TextBox x:Name="BuscaTextBox" MaxWidth="760" HorizontalAlignment="Left" PlaceholderText="Buscar por telefone, empresa, cliente, ticket externo, mensagem ou ID" TextChanged="BuscaTextBox_TextChanged" />
-                <ComboBox x:Name="StatusComboBox" Grid.Column="1" Width="180" SelectionChanged="StatusComboBox_SelectionChanged" />
-            </Grid>
-            <TextBlock Grid.Row="1" Margin="0,4,0,0" Text="ATENDIMENTOS — ordenados pelo maior tempo sem mensagem" Style="{StaticResource CaptionTextBlockStyle}" />
-            <ScrollViewer Grid.Row="2" VerticalScrollMode="Enabled" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
-                <StackPanel x:Name="AtendimentosList" MaxWidth="1300" HorizontalAlignment="Left" Spacing="2" />
-            </ScrollViewer>
-        </Grid>
-
-        <InfoBar x:Name="AlertaInteracaoInfo" Grid.RowSpan="5" Canvas.ZIndex="10" Width="560" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,56,0,0"
-                 IsOpen="False" IsClosable="True" Severity="Warning" Title="Conversa sem mensagem" />
+        <StackPanel Grid.Row="1" Spacing="10">
+            <TextBox x:Name="BuscaTextBox" HorizontalAlignment="Stretch" PlaceholderText="Buscar por contato, empresa ou ID" TextChanged="BuscaTextBox_TextChanged" AutomationProperties.Name="Buscar atendimentos" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <ToggleButton x:Name="AbertosFiltro" Content="Em aberto (0)" Tag="Em aberto" Click="Filtro_Click" IsChecked="True" />
+                <ToggleButton x:Name="AdiadosFiltro" Content="Adiados (0)" Tag="Adiado" Click="Filtro_Click" />
+                <ToggleButton x:Name="TodosFiltro" Content="Todos (0)" Tag="Todos" Click="Filtro_Click" />
+            </StackPanel>
+        </StackPanel>
+        <InfoBar x:Name="StatusInfo" Grid.Row="2" IsOpen="False" IsClosable="True" />
+        <ScrollViewer x:Name="ListaScroll" Grid.Row="3" VerticalScrollMode="Enabled" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" SizeChanged="Lista_SizeChanged">
+            <Grid x:Name="AtendimentosList" HorizontalAlignment="Stretch" ColumnSpacing="12" RowSpacing="12" />
+        </ScrollViewer>
+        <InfoBar x:Name="AlertaInteracaoInfo" Grid.Row="4" IsOpen="False" IsClosable="True" Severity="Warning" Title="Tempo desde a última interação" />
     </Grid>
 </Page>

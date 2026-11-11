@@ -1,6 +1,9 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Data;
+using Microsoft.UI.Xaml.Media;
 using ServiceDesk.Models;
 using ServiceDesk.Services;
 using Windows.System;
@@ -11,39 +14,44 @@ public sealed partial class MainPage : Page
 {
     private readonly DispatcherTimer _relogio = new() { Interval = TimeSpan.FromSeconds(30) };
     private readonly DispatcherTimer _sincronizador = new();
+    private readonly DispatcherTimer _aviso = new() { Interval = TimeSpan.FromSeconds(5) };
     private readonly MonitoramentoService _monitoramento = new();
     private readonly ConfiguracaoAtualizacaoService _configuracaoAtualizacao = new();
+    private readonly PreferenciasInterfaceService _preferenciasService = new();
     private readonly ServicoNotificacoes _notificacoes = new();
+    private PreferenciasInterface _preferencias = new();
     private IReadOnlyList<AtendimentoMonitorado> _atendimentos = [];
     private bool _sincronizando;
+    private bool _exportando;
+    private bool _interfaceIniciada;
     private bool _atualizacaoAutomaticaAtiva;
     private int _intervaloAtualizacaoMinutos;
     private bool _notificacoesAtivas;
     private int _limiteNotificacaoMinutos;
+    private int _colunas = 1;
     private string _filtroStatus = "Em aberto";
-    private AtendimentoMonitorado? _atendimentoSelecionado;
 
     public MainPage()
     {
         InitializeComponent();
-        if (Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1")
-        {
-            var teste = CriarPreviaExportacao("Cabeçalho\r\nCliente\r\nMensagem final");
-            if (!teste.Text.Contains("Mensagem final", StringComparison.Ordinal))
-                throw new InvalidOperationException("A prévia truncou o histórico em múltiplas linhas.");
-        }
-        StatusComboBox.Items.Add("Todos");
-        StatusComboBox.Items.Add("Em aberto");
-        StatusComboBox.Items.Add("Adiado");
-        StatusComboBox.SelectedItem = _filtroStatus;
+        if (Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1"
+            && !CriarPreviaExportacao("Cabeçalho\r\nMensagem final").Text.Contains("Mensagem final"))
+            throw new InvalidOperationException("A prévia truncou o histórico.");
         _relogio.Tick += (_, _) => AtualizarTemposExibidos();
         _relogio.Start();
         _sincronizador.Tick += async (_, _) => await AtualizarAsync();
+        _aviso.Tick += (_, _) => { _aviso.Stop(); StatusInfo.IsOpen = false; };
+        _interfaceIniciada = true;
+        AplicarPreferenciasInterface();
+        ActualThemeChanged += (_, _) => AtualizarFiltrosVisuais();
         CarregarConfiguracaoAtualizacao();
     }
 
-    private async void Page_Loaded(object sender, RoutedEventArgs e) => await AtualizarAsync();
-
+    private async void Page_Loaded(object sender, RoutedEventArgs e)
+    {
+        AplicarPreferenciasInterface();
+        await AtualizarAsync();
+    }
     private async void AtualizarButton_Click(object sender, RoutedEventArgs e) => await AtualizarAsync();
 
     private async Task AtualizarAsync()
@@ -51,39 +59,33 @@ public sealed partial class MainPage : Page
         if (_sincronizando) return;
         _sincronizando = true;
         AtualizarButton.IsEnabled = false;
-        AbrirButton.IsEnabled = false;
-        ExportarButton.IsEnabled = false;
-        StatusInfo.Severity = InfoBarSeverity.Informational;
-        StatusInfo.Title = "Atualizando";
-        StatusInfo.Message = "Consultando seus atendimentos no Chatwoot...";
-        StatusInfo.IsOpen = true;
-
+        SincronizacaoText.Text = "Atualizando sua fila…";
         try
         {
             var resultado = await _monitoramento.SincronizarAsync(CancellationToken.None);
             _atendimentos = resultado.Atendimentos;
             AplicarFiltros();
             NotificarAtendimentosPendentes();
-
-            AbertosCountText.Text = _atendimentos.Count(item => !item.EstaAdiado).ToString();
-            AdiadosCountText.Text = _atendimentos.Count(item => item.EstaAdiado).ToString();
-            StatusInfo.Severity = InfoBarSeverity.Success;
-            StatusInfo.Title = "Sincronização concluída";
-            StatusInfo.Message = _atendimentos.Count == 0
-                ? "Não há atendimentos em aberto ou adiados atribuídos a você."
-                : $"{_atendimentos.Count} atendimento(s) atribuído(s) a você foram atualizados.";
+            _aviso.Stop();
+            StatusInfo.IsOpen = false;
+            SincronizacaoText.Text = $"Atualizado às {DateTime.Now:HH:mm} · {_atendimentos.Count} atendimento(s)";
         }
         catch (Exception ex)
         {
-            StatusInfo.Severity = InfoBarSeverity.Error;
-            StatusInfo.Title = "Não foi possível sincronizar";
-            StatusInfo.Message = ex.Message;
+            SincronizacaoText.Text = "Atualização indisponível · a fila anterior pode estar desatualizada";
+            MostrarAviso("Não foi possível atualizar", ex.Message, InfoBarSeverity.Error);
         }
-        finally
-        {
-            AtualizarButton.IsEnabled = true;
-            _sincronizando = false;
-        }
+        finally { AtualizarButton.IsEnabled = true; _sincronizando = false; }
+    }
+
+    private void MostrarAviso(string titulo, string mensagem, InfoBarSeverity severidade)
+    {
+        _aviso.Stop();
+        StatusInfo.Title = titulo;
+        StatusInfo.Message = mensagem;
+        StatusInfo.Severity = severidade;
+        StatusInfo.IsOpen = true;
+        if (severidade == InfoBarSeverity.Success) _aviso.Start();
     }
 
     private void CarregarConfiguracaoAtualizacao()
@@ -93,99 +95,117 @@ public sealed partial class MainPage : Page
         _intervaloAtualizacaoMinutos = configuracao.IntervaloMinutos;
         _notificacoesAtivas = configuracao.NotificacoesAtivas;
         _limiteNotificacaoMinutos = configuracao.LimiteNotificacaoMinutos;
-        AplicarConfiguracaoAtualizacao();
-    }
-
-    private void AplicarConfiguracaoAtualizacao()
-    {
         _sincronizador.Stop();
         if (_atualizacaoAutomaticaAtiva)
         {
             _sincronizador.Interval = TimeSpan.FromMinutes(_intervaloAtualizacaoMinutos);
             _sincronizador.Start();
-
         }
-        else
+    }
+
+    private void AplicarPreferenciasInterface()
+    {
+        _preferencias = _preferenciasService.Carregar();
+        var tema = _preferencias.Tema switch { "Claro" => ElementTheme.Light, "Escuro" => ElementTheme.Dark, _ => ElementTheme.Default };
+        RequestedTheme = tema;
+        if (XamlRoot?.Content is FrameworkElement raiz) raiz.RequestedTheme = tema;
+        AtualizarFiltrosVisuais();
+    }
+
+    private SolidColorBrush CorDestaque() => new(_preferencias.Cor switch
+    {
+        "Verde" => Windows.UI.Color.FromArgb(255, 0, 119, 93),
+        "Roxo" => Windows.UI.Color.FromArgb(255, 109, 76, 196),
+        "Laranja" => Windows.UI.Color.FromArgb(255, 169, 72, 0),
+        "Vermelho" => Windows.UI.Color.FromArgb(255, 180, 50, 50),
+        _ => Windows.UI.Color.FromArgb(255, 45, 110, 210)
+    });
+
+    private void AtualizarFiltrosVisuais()
+    {
+        if (!_interfaceIniciada) return;
+        AbertosFiltro.Content = $"Em aberto ({_atendimentos.Count(x => !x.EstaAdiado)})";
+        AdiadosFiltro.Content = $"Adiados ({_atendimentos.Count(x => x.EstaAdiado)})";
+        TodosFiltro.Content = $"Todos ({_atendimentos.Count})";
+        foreach (var filtro in new[] { AbertosFiltro, AdiadosFiltro, TodosFiltro })
         {
-
+            var ativo = filtro.Tag as string == _filtroStatus;
+            filtro.IsChecked = ativo;
+            filtro.Background = ativo ? CorDestaque() : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            filtro.Foreground = new SolidColorBrush(ativo || ActualTheme == ElementTheme.Dark ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black);
         }
+    }
+
+    private void Lista_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var colunas = Math.Clamp((int)(e.NewSize.Width / 360), 1, 4);
+        if (colunas == _colunas || !_interfaceIniciada) return;
+        _colunas = colunas;
+        PreencherLista();
     }
 
     private void PreencherLista()
     {
         AtendimentosList.Children.Clear();
+        AtendimentosList.RowDefinitions.Clear();
+        AtendimentosList.ColumnDefinitions.Clear();
+        for (var i = 0; i < _colunas; i++) AtendimentosList.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var visiveis = FiltrarAtendimentos();
-        foreach (var atendimento in visiveis)
+        for (var i = 0; i < visiveis.Count; i++)
         {
+            var atendimento = visiveis[i];
             atendimento.AtualizarTempo(DateTimeOffset.Now);
-            var botao = new Button
-            {
-                Tag = atendimento,
-                Content = CriarCardAtendimento(atendimento),
-                HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                VerticalContentAlignment = VerticalAlignment.Stretch,
-                Padding = new Thickness(0),
-                Margin = new Thickness(0),
-                Background = null,
-                BorderThickness = new Thickness(0)
-            };
-            botao.Click += AtendimentoCard_Click;
-            AtendimentosList.Children.Add(botao);
+            if (i % _colunas == 0) AtendimentosList.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var card = CriarCardAtendimento(atendimento);
+            Grid.SetRow(card, i / _colunas);
+            Grid.SetColumn(card, i % _colunas);
+            AtendimentosList.Children.Add(card);
         }
-
         if (visiveis.Count == 0)
         {
-            AtendimentosList.Children.Add(new TextBlock
-            {
-                Text = "Nenhum atendimento corresponde aos filtros selecionados.",
-                TextWrapping = TextWrapping.Wrap,
-                Padding = new Thickness(0, 24, 0, 24)
-            });
+            var vazio = new TextBlock { Text = "Nenhum atendimento corresponde aos filtros.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 24, 0, 24) };
+            Grid.SetColumnSpan(vazio, _colunas);
+            AtendimentosList.Children.Add(vazio);
         }
     }
 
     private Border CriarCardAtendimento(AtendimentoMonitorado atendimento)
     {
-        var card = new Border { Padding = new Thickness(16), Margin = new Thickness(2), CornerRadius = new CornerRadius(8), Background = Application.Current.Resources["CardBackgroundFillColorDefaultBrush"] as Microsoft.UI.Xaml.Media.Brush };
-        var conteudo = new Grid { RowSpacing = 6 };
-        conteudo.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        conteudo.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        conteudo.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        conteudo.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        var cabecalho = new Grid();
+        var card = new Border { Style = (Style)Resources["AtendimentoCardStyle"] };
+        var conteudo = new StackPanel { Spacing = 8 };
+        var cabecalho = new Grid { ColumnSpacing = 8 };
         cabecalho.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         cabecalho.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var cliente = new StackPanel { Spacing = 2 };
-        cliente.Children.Add(new TextBlock { Text = atendimento.Cliente, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-        cliente.Children.Add(new TextBlock { Text = atendimento.Assunto, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxLines = 2, Opacity = 0.72 });
-        cabecalho.Children.Add(cliente);
-        var situacao = new TextBlock { Text = atendimento.SituacaoText, VerticalAlignment = VerticalAlignment.Top, Opacity = 0.8 };
-        Grid.SetColumn(situacao, 1);
-        cabecalho.Children.Add(situacao);
+        cabecalho.Children.Add(new TextBlock { Text = $"Atendimento #{atendimento.Id}", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        var opcoes = new Button { Content = new FontIcon { Glyph = "\uE712" }, Padding = new Thickness(8), MinWidth = 32, MinHeight = 32 };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(opcoes, $"Opções do atendimento {atendimento.Id}");
+        ToolTipService.SetToolTip(opcoes, "Opções do atendimento");
+        var menu = new MenuFlyout();
+        void Acao(string texto, Func<Task> executar)
+        {
+            var item = new MenuFlyoutItem { Text = texto };
+            item.Click += async (_, _) => await executar();
+            menu.Items.Add(item);
+        }
+        Acao("Copiar texto", () => ExportarAtendimentoAsync(atendimento, copiar: true));
+        Acao("Exportar chat", () => ExportarAtendimentoAsync(atendimento, copiar: false));
+        Acao("Abrir no Chatwoot", () => AbrirAtendimentoAsync(atendimento));
+        opcoes.Flyout = menu;
+        Grid.SetColumn(opcoes, 1);
+        cabecalho.Children.Add(opcoes);
         conteudo.Children.Add(cabecalho);
-
-        var tempo = new Grid { ColumnSpacing = 16, Margin = new Thickness(0, 4, 0, 2) };
-        tempo.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        tempo.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var aberto = new StackPanel { Spacing = 1 };
-        aberto.Children.Add(new TextBlock { Text = "TEMPO DESDE A CRIAÇÃO", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
-        aberto.Children.Add(new TextBlock { Text = atendimento.TempoDesdeCriacao, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 19 });
-        tempo.Children.Add(aberto);
-        var atividade = new StackPanel { Spacing = 1 };
-        atividade.Children.Add(new TextBlock { Text = "TEMPO SEM MENSAGEM", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
-        atividade.Children.Add(new TextBlock { Text = atendimento.TempoSemMensagemPublica, FontWeight = Microsoft.UI.Text.FontWeights.Bold, FontSize = 19 });
-        Grid.SetColumn(atividade, 1);
-        tempo.Children.Add(atividade);
-        Grid.SetRow(tempo, 1);
+        var contato = new TextBlock { Text = atendimento.Cliente, FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
+        ToolTipService.SetToolTip(contato, atendimento.Cliente);
+        conteudo.Children.Add(contato);
+        var empresa = new TextBlock { Text = string.IsNullOrWhiteSpace(atendimento.Empresa) ? "Empresa não informada" : atendimento.Empresa, FontSize = 16, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis, Opacity = 0.8 };
+        ToolTipService.SetToolTip(empresa, empresa.Text);
+        conteudo.Children.Add(empresa);
+        conteudo.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Windows.UI.Color.FromArgb(50, 128, 128, 128)), Margin = new Thickness(0, 4, 0, 2) });
+        conteudo.Children.Add(new TextBlock { Text = "Última interação", Opacity = 0.7 });
+        var tempo = new TextBlock { FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
+        tempo.SetBinding(TextBlock.TextProperty, new Binding { Source = atendimento, Path = new PropertyPath(nameof(AtendimentoMonitorado.TempoUltimaInteracaoAgente)), Mode = BindingMode.OneWay });
         conteudo.Children.Add(tempo);
-
-        var detalhes = new StackPanel { Spacing = 3, Opacity = 0.76 };
-        detalhes.Children.Add(new TextBlock { Text = atendimento.UltimaMensagemPublicaText });
-        detalhes.Children.Add(new TextBlock { Text = atendimento.UltimaMensagemClienteText });
-        detalhes.Children.Add(new TextBlock { Text = atendimento.MinhaUltimaMensagemText });
-        Grid.SetRow(detalhes, 2);
-        conteudo.Children.Add(detalhes);
+        conteudo.Children.Add(new TextBlock { Text = atendimento.SituacaoText, Opacity = 0.7, TextWrapping = TextWrapping.Wrap });
         card.Child = conteudo;
         return card;
     }
@@ -193,74 +213,39 @@ public sealed partial class MainPage : Page
     private List<AtendimentoMonitorado> FiltrarAtendimentos()
     {
         var busca = BuscaTextBox.Text?.Trim() ?? string.Empty;
-        return _atendimentos
-            .Where(item => _filtroStatus switch
-            {
-                "Em aberto" => !item.EstaAdiado,
-                "Adiado" => item.EstaAdiado,
-                _ => true
-            })
-            .Where(item => string.IsNullOrWhiteSpace(busca)
-                || item.Cliente.Contains(busca, StringComparison.OrdinalIgnoreCase)
-                || item.Telefone.Contains(busca, StringComparison.OrdinalIgnoreCase)
-                || item.Empresa.Contains(busca, StringComparison.OrdinalIgnoreCase)
-                || item.Ticket.Contains(busca, StringComparison.OrdinalIgnoreCase)
-                || item.Assunto.Contains(busca, StringComparison.OrdinalIgnoreCase)
+        return _atendimentos.Where(item => _filtroStatus switch { "Em aberto" => !item.EstaAdiado, "Adiado" => item.EstaAdiado, _ => true })
+            .Where(item => string.IsNullOrWhiteSpace(busca) || item.Cliente.Contains(busca, StringComparison.OrdinalIgnoreCase)
+                || item.Empresa.Contains(busca, StringComparison.OrdinalIgnoreCase) || item.Telefone.Contains(busca, StringComparison.OrdinalIgnoreCase)
                 || item.Id.ToString().Contains(busca, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(item => item.ReferenciaInteracao)
-            .ToList();
+            .OrderBy(item => item.ReferenciaInteracao).ThenBy(item => item.Id).ToList();
     }
 
     private void AplicarFiltros()
     {
-        AbrirButton.IsEnabled = false;
-        ExportarButton.IsEnabled = false;
-        _atendimentoSelecionado = null;
+        if (!_interfaceIniciada) return;
+        AtualizarFiltrosVisuais();
         PreencherLista();
     }
-
     private void BuscaTextBox_TextChanged(object sender, TextChangedEventArgs e) => AplicarFiltros();
-
-    private void StatusComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void Filtro_Click(object sender, RoutedEventArgs e)
     {
-        if (StatusComboBox.SelectedItem is string filtro) _filtroStatus = filtro;
+        _filtroStatus = (sender as FrameworkElement)?.Tag as string ?? "Em aberto";
         AplicarFiltros();
     }
-
-    private void FilaTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (FilaTabs.SelectedItem is not TabViewItem { Tag: string filtro }) return;
-        _filtroStatus = filtro;
-        StatusComboBox.SelectedItem = filtro;
-        AplicarFiltros();
-    }
-
     private void AtualizarTemposExibidos()
     {
-        if (_atendimentos.Count == 0) return;
-        AplicarFiltros();
+        foreach (var atendimento in _atendimentos) atendimento.AtualizarTempo(DateTimeOffset.Now);
         NotificarAtendimentosPendentes();
     }
-
     private void NotificarAtendimentosPendentes()
     {
         if (!_notificacoesAtivas) return;
-        var novosAlertas = _notificacoes.NotificarAtendimentosSemInteracao(_atendimentos, _limiteNotificacaoMinutos);
+        var novosAlertas = _notificacoes.NotificarAtendimentosSemInteracao(_atendimentos, _limiteNotificacaoMinutos, _preferencias);
         if (novosAlertas.Count == 0) return;
-
         var primeiro = novosAlertas[0];
-        AlertaInteracaoInfo.Title = novosAlertas.Count == 1 ? "Conversa sem mensagem" : $"{novosAlertas.Count} conversas sem mensagem";
-        AlertaInteracaoInfo.Message = novosAlertas.Count == 1
-            ? $"Última mensagem de {primeiro.Cliente}: {primeiro.TempoSemMensagemPublica}."
-            : $"{primeiro.Cliente} e outros atendimentos excederam o limite configurado.";
+        AlertaInteracaoInfo.Title = novosAlertas.Count == 1 ? $"Atendimento #{primeiro.Id}" : $"{novosAlertas.Count} atendimentos";
+        AlertaInteracaoInfo.Message = $"{primeiro.Cliente} · Última interação {primeiro.TempoUltimaInteracaoAgente}";
         AlertaInteracaoInfo.IsOpen = true;
-    }
-
-    private void AtendimentoCard_Click(object sender, RoutedEventArgs e)
-    {
-        _atendimentoSelecionado = (sender as FrameworkElement)?.Tag as AtendimentoMonitorado;
-        AbrirButton.IsEnabled = _atendimentoSelecionado is not null;
-        ExportarButton.IsEnabled = _atendimentoSelecionado is not null;
     }
 
     private static TextBox CriarPreviaExportacao(string texto)
@@ -272,14 +257,23 @@ public sealed partial class MainPage : Page
         return previa;
     }
 
-    private async void ExportarButton_Click(object sender, RoutedEventArgs e)
+    private async Task ExportarAtendimentoAsync(AtendimentoMonitorado atendimento, bool copiar)
     {
-        if (_atendimentoSelecionado is not { } atendimento) return;
-        ExportarButton.IsEnabled = false;
+        if (_exportando) return;
+        _exportando = true;
+        _aviso.Stop();
         try
         {
             using var chatwoot = new ChatwootSyncService(CarregadorConfiguracaoChatwoot.Carregar());
             var exportacao = await chatwoot.ExportarAtendimentoAsync(atendimento, CancellationToken.None);
+            if (copiar)
+            {
+                var dadosCopiados = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dadosCopiados.SetText(exportacao.Texto);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dadosCopiados);
+                MostrarAviso("Texto copiado", $"Atendimento #{atendimento.Id} copiado.", InfoBarSeverity.Success);
+                return;
+            }
             var previa = CriarPreviaExportacao(exportacao.Texto);
             var conteudo = new StackPanel { Spacing = 12 };
             conteudo.Children.Add(new TextBlock
@@ -340,26 +334,17 @@ public sealed partial class MainPage : Page
                     await Windows.Storage.FileIO.WriteTextAsync(arquivo, previa.Text);
                 }
             }
-            StatusInfo.Severity = InfoBarSeverity.Success;
-            StatusInfo.Title = resultado == ContentDialogResult.Primary ? "Texto copiado" : "Arquivo salvo";
-            StatusInfo.Message = resultado == ContentDialogResult.Primary
-                ? $"Texto do atendimento #{atendimento.Id} copiado."
-                : $"Atendimento #{atendimento.Id} salvo com sucesso.";
-            StatusInfo.IsOpen = true;
+            MostrarAviso(resultado == ContentDialogResult.Primary ? "Texto copiado" : "Arquivo salvo", $"Atendimento #{atendimento.Id}.", InfoBarSeverity.Success);
         }
         catch (Exception ex)
         {
-            StatusInfo.Severity = InfoBarSeverity.Error;
-            StatusInfo.Title = "Não foi possível exportar";
-            StatusInfo.Message = ex.Message;
-            StatusInfo.IsOpen = true;
+            MostrarAviso("Não foi possível exportar", ex.Message, InfoBarSeverity.Error);
         }
-        finally { ExportarButton.IsEnabled = _atendimentoSelecionado is not null && !_sincronizando; }
+        finally { _exportando = false; }
     }
 
-    private async void AbrirButton_Click(object sender, RoutedEventArgs e)
+    private async Task AbrirAtendimentoAsync(AtendimentoMonitorado atendimento)
     {
-        if (_atendimentoSelecionado is not { } atendimento) return;
         try
         {
             var configuracao = CarregadorConfiguracaoChatwoot.Carregar();
@@ -367,10 +352,7 @@ public sealed partial class MainPage : Page
         }
         catch (Exception ex)
         {
-            StatusInfo.Severity = InfoBarSeverity.Error;
-            StatusInfo.Title = "Não foi possível abrir o atendimento";
-            StatusInfo.Message = ex.Message;
-            StatusInfo.IsOpen = true;
+            MostrarAviso("Não foi possível abrir o atendimento", ex.Message, InfoBarSeverity.Error);
         }
     }
 }

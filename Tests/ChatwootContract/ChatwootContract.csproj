@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Services/PreferenciasInterfaceService.cs" Link="PreferenciasInterfaceService.cs" />
     <Compile Include="../../Models/AtendimentoMonitorado.cs" Link="AtendimentoMonitorado.cs" />
     <Compile Include="../../Services/ChatwootSyncService.cs" Link="ChatwootSyncService.cs" />
     <Compile Include="../../Services/MensagemChatwoot.cs" Link="MensagemChatwoot.cs" />

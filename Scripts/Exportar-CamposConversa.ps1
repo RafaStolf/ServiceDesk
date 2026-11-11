@@ -9,8 +9,12 @@ if ($ConversaId -le 0 -or $ContaId -le 0) { throw 'Informe IDs positivos.' }
 $propriedades = @{}
 foreach ($linha in Get-Content -LiteralPath $Configuracao) {
     if ($linha.Trim() -eq '' -or $linha.Trim().StartsWith('#')) { continue }
-    $partes = $linha.Split(@('='), 2)
-    if ($partes.Length -eq 2) { $propriedades[$partes[0].Trim()] = $partes[1].Trim() }
+    $separador = $linha.IndexOf('=')
+    if ($separador -ge 0) {
+        $chave = $linha.Substring(0, $separador).Trim()
+        $valor = $linha.Substring($separador + 1).Trim()
+        if ($chave.Length -gt 0) { $propriedades[$chave] = $valor }
+    }
 }
 $base = $null
 if (![Uri]::TryCreate($propriedades['chatwoot.base-url'], [UriKind]::Absolute, [ref]$base) -or $base.Scheme -ne 'https' -or $base.UserInfo) {

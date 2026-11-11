@@ -15,6 +15,9 @@ try {
     if (!(Test-Path "$target/ServiceDesk.exe") -or !(Test-Path "$target/unins000.exe")) { throw 'Instalação incompleta.' }
     $atalho = Join-Path ([Environment]::GetFolderPath('Programs')) 'ServiceDesk.lnk'
     if (!(Test-Path $atalho)) { throw 'Atalho do menu Iniciar não foi criado.' }
+    $shell = New-Object -ComObject Shell.Application
+    $itemAtalho = $shell.Namespace((Split-Path $atalho)).ParseName((Split-Path $atalho -Leaf))
+    if ($itemAtalho.ExtendedProperty('System.AppUserModel.ID') -ne 'Centrium.ServiceDesk') { throw 'Identidade de notificacoes ausente no atalho.' }
     $env:SERVICEDESK_DIAGNOSTICO = '1'
     $app = Start-Process -FilePath "$target/ServiceDesk.exe" -WorkingDirectory $target -PassThru
     Start-Sleep -Seconds 10
