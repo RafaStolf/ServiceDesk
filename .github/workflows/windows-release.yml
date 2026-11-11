@@ -88,7 +88,7 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (!(Test-Path $iscc)) { throw "Inno Setup 6 não encontrado no runner." }
-          $assinador = '"' + $env:SIGNTOOL_PATH + '" sign /s My /sha1 ' + $env:SIGNING_THUMBPRINT + ' /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $f'
+          $assinador = '$q' + $env:SIGNTOOL_PATH + '$q sign /s My /sha1 ' + $env:SIGNING_THUMBPRINT + ' /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $f'
           & $iscc "/DAppVersion=$env:RELEASE_VERSION" "/DPublishDir=$env:GITHUB_WORKSPACE\publish" '/DSignedBuild' "/SServiceDeskSign=$assinador" Installer/ServiceDesk.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item installer-output/ServiceDesk-Setup-win-x64.exe .
