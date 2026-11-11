@@ -81,7 +81,18 @@ function Clicar([string]$nome) {
     Write-Host "Acionando: $nome"
     $elemento = Aguardar $nome
     $padrao = $null
-    if ($elemento.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$padrao)) { $padrao.Invoke() }
+    if ($elemento.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$padrao)) {
+        try { $padrao.Invoke() }
+        catch {
+            # A navegação pode remover o peer UIA antes de Invoke retornar.
+            # Aceite apenas essa invalidação esperada; o próximo Aguardar verifica
+            # o destino real. Outras exceções continuam falhando o teste.
+            $transicao = $nome -in @('Métricas', 'Voltar à fila', 'Fechar') -or $nome.StartsWith('Ver detalhes do ticket ')
+            if ($transicao -and $_.Exception.InnerException -is [System.Windows.Automation.ElementNotAvailableException]) {
+                Write-Host "Peer substituído na navegação: $nome; verificando a tela de destino."
+            } else { throw }
+        }
+    }
     elseif ($elemento.TryGetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern, [ref]$padrao)) { $padrao.Toggle() }
     else { throw "Controle não acionável: $nome" }
 }
