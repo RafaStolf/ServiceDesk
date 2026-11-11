@@ -34,7 +34,7 @@ using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN
     Verificar(conversa.UltimaInteracaoMinhaEm == DateTimeOffset.FromUnixTimeSeconds(1794340000), "sincronização usa a última mensagem pública do agente");
     Verificar(conversa.UltimaMensagemClienteEm == DateTimeOffset.FromUnixTimeSeconds(1794340010), "sincronização usa a última mensagem do contato");
     Verificar(conversa.UltimaMensagemPublicaEm == DateTimeOffset.FromUnixTimeSeconds(1794340050), "relógio de mensagem pública não é confundido com resposta humana");
-    Verificar(conversa.Assunto == "Sem prévia de mensagem pública", "nota privada não é usada como prévia pública");
+    Verificar(conversa.Assunto == "Sem prévia de mensagem", "nota privada não é usada como prévia pública");
     var exportacao = await sync.ExportarAtendimentoAsync(conversa, CancellationToken.None);
     Verificar(exportacao.Texto.Contains("Resposta pública") && exportacao.Texto.Contains("Mensagem do contato")
         && !exportacao.Texto.Contains("NOTA-PRIVADA-EXCLUIR") && !exportacao.Texto.Contains("EVENTO-EXCLUIR"), "exportação mantém mensagens públicas e exclui notas/eventos");

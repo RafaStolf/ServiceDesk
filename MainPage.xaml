@@ -61,13 +61,13 @@
                 <TextBox x:Name="BuscaTextBox" MaxWidth="760" HorizontalAlignment="Left" PlaceholderText="Buscar por telefone, empresa, cliente, ticket externo, mensagem ou ID" TextChanged="BuscaTextBox_TextChanged" />
                 <ComboBox x:Name="StatusComboBox" Grid.Column="1" Width="180" SelectionChanged="StatusComboBox_SelectionChanged" />
             </Grid>
-            <TextBlock Grid.Row="1" Margin="0,4,0,0" Text="ATENDIMENTOS — ordenados pela maior tempo sem mensagem pública" Style="{StaticResource CaptionTextBlockStyle}" />
+            <TextBlock Grid.Row="1" Margin="0,4,0,0" Text="ATENDIMENTOS — ordenados pelo maior tempo sem mensagem" Style="{StaticResource CaptionTextBlockStyle}" />
             <ScrollViewer Grid.Row="2" VerticalScrollMode="Enabled" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
                 <StackPanel x:Name="AtendimentosList" MaxWidth="1300" HorizontalAlignment="Left" Spacing="2" />
             </ScrollViewer>
         </Grid>
 
         <InfoBar x:Name="AlertaInteracaoInfo" Grid.RowSpan="5" Canvas.ZIndex="10" Width="560" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,56,0,0"
-                 IsOpen="False" IsClosable="True" Severity="Warning" Title="Conversa sem mensagem pública" />
+                 IsOpen="False" IsClosable="True" Severity="Warning" Title="Conversa sem mensagem" />
     </Grid>
 </Page>

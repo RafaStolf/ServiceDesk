@@ -23,7 +23,7 @@ Referência: Chatwoot oficial v4.19.1. A versão usada pela equipe ainda será c
 
 Os campos `sender_type`/`sender_id` no nível raiz pertencem a outros formatos, como atributos de eventos/modelos. O endpoint GET de mensagens usa `sender.type`/`sender.id`. A implementação prioriza o formato do endpoint e mantém compatibilidade com os campos antigos quando o remetente aninhado não está disponível.
 
-O relógio atual mede **tempo sem mensagem pública**. Inclui mensagens públicas de contatos, agentes, bots e modelos. Não se chama tempo de resposta, resposta humana ou SLA. Quando não há mensagem pública, a criação é apenas a referência provisória para ordenação; a tela informa que não existe mensagem pública registrada.
+O rótulo exibido é **tempo sem mensagem**. Internamente, o relógio considera apenas mensagens públicas, preservando a exclusão de notas privadas e eventos. Inclui mensagens públicas de contatos, agentes, bots e modelos. Não se chama tempo de resposta, resposta humana ou SLA. Quando não há mensagem pública, a criação é apenas a referência provisória para ordenação; a tela informa que não existe mensagem pública registrada.
 
 ## Indicadores e regras ainda a confirmar
 

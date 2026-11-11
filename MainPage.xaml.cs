@@ -173,7 +173,7 @@ public sealed partial class MainPage : Page
         aberto.Children.Add(new TextBlock { Text = atendimento.TempoDesdeCriacao, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 19 });
         tempo.Children.Add(aberto);
         var atividade = new StackPanel { Spacing = 1 };
-        atividade.Children.Add(new TextBlock { Text = "TEMPO SEM MENSAGEM PÚBLICA", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
+        atividade.Children.Add(new TextBlock { Text = "TEMPO SEM MENSAGEM", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
         atividade.Children.Add(new TextBlock { Text = atendimento.TempoSemMensagemPublica, FontWeight = Microsoft.UI.Text.FontWeights.Bold, FontSize = 19 });
         Grid.SetColumn(atividade, 1);
         tempo.Children.Add(atividade);
@@ -249,9 +249,9 @@ public sealed partial class MainPage : Page
         if (novosAlertas.Count == 0) return;
 
         var primeiro = novosAlertas[0];
-        AlertaInteracaoInfo.Title = novosAlertas.Count == 1 ? "Conversa sem mensagem pública" : $"{novosAlertas.Count} conversas sem mensagem pública";
+        AlertaInteracaoInfo.Title = novosAlertas.Count == 1 ? "Conversa sem mensagem" : $"{novosAlertas.Count} conversas sem mensagem";
         AlertaInteracaoInfo.Message = novosAlertas.Count == 1
-            ? $"Última mensagem pública de {primeiro.Cliente}: {primeiro.TempoSemMensagemPublica}."
+            ? $"Última mensagem de {primeiro.Cliente}: {primeiro.TempoSemMensagemPublica}."
             : $"{primeiro.Cliente} e outros atendimentos excederam o limite configurado.";
         AlertaInteracaoInfo.IsOpen = true;
     }

@@ -45,8 +45,8 @@ public sealed class AtendimentoMonitorado : INotifyPropertyChanged
     }
 
     public string UltimaMensagemPublicaText => DataValida(UltimaMensagemPublicaEm) is null
-        ? "Sem mensagem pública registrada"
-        : $"Última mensagem pública: {UltimaMensagemPublicaEm!.Value.LocalDateTime:dd/MM HH:mm}";
+        ? "Sem mensagem registrada"
+        : $"Última mensagem: {UltimaMensagemPublicaEm!.Value.LocalDateTime:dd/MM HH:mm}";
 
     public string UltimaMensagemClienteText => DataValida(UltimaMensagemClienteEm) is null
         ? "Contato: sem mensagem recebida registrada"

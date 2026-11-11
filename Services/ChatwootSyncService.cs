@@ -148,7 +148,7 @@ public sealed class ChatwootSyncService : IDisposable
             Telefone = telefone ?? string.Empty,
             Empresa = empresa ?? string.Empty,
             Ticket = ticket ?? string.Empty,
-            Assunto = string.IsNullOrWhiteSpace(assunto) ? "Sem prévia de mensagem pública" : Resumir(assunto),
+            Assunto = string.IsNullOrWhiteSpace(assunto) ? "Sem prévia de mensagem" : Resumir(assunto),
             Status = status,
             CriadoEm = LerData(conversa, "created_at") ?? DateTimeOffset.UtcNow,
             UltimaInteracaoMinhaEm = interacoes.UltimaMinha,
