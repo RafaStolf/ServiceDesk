@@ -22,7 +22,8 @@ $server = Start-Job -ArgumentList $porta, $root -ScriptBlock {
             $espera = $http.GetContextAsync()
             while (!$espera.IsCompleted -and !(Test-Path (Join-Path $root 'parar'))) { Start-Sleep -Milliseconds 100 }
             if (Test-Path (Join-Path $root 'parar')) { break }
-            $context = $espera.GetAwaiter().GetResult()
+            try { $context = $espera.GetAwaiter().GetResult() }
+            catch { if (!$http.IsListening) { break }; continue }
             try {
                 if ($context.Request.HttpMethod -ne 'GET' -or $context.Request.Headers['api_access_token'] -ne 'TOKEN-FICTICIO-UI') {
                     $context.Response.StatusCode = 403; $context.Response.Close(); continue
@@ -63,7 +64,11 @@ $server = Start-Job -ArgumentList $porta, $root -ScriptBlock {
                 $bytes = [Text.Encoding]::UTF8.GetBytes($json)
                 $context.Response.ContentType = 'application/json; charset=utf-8'
                 $context.Response.OutputStream.Write($bytes,0,$bytes.Length)
-            } catch { } finally { $context.Response.Close() }
+            } catch { } finally {
+                # O cliente cancela e fecha o socket durante o teste. Falha ao
+                # fechar essa resposta não pode encerrar o servidor sintético.
+                try { $context.Response.Close() } catch { }
+            }
         }
     } finally { $http.Close() }
 }
@@ -145,6 +150,7 @@ try {
 } catch {
     Write-Host $_.ScriptStackTrace
     Write-Host $_.Exception.ToString()
+    Receive-Job $server -Keep -ErrorAction Continue | Out-String | Write-Host
     if ($null -ne $app -and !$app.HasExited -and $null -ne $script:janela) {
         $elementos = $script:janela.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
         for ($i=0; $i -lt [Math]::Min(80,$elementos.Count); $i++) {
