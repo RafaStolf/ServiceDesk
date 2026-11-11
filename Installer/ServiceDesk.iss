@@ -9,7 +9,7 @@
 AppId={{8EB83B1F-CE63-48F5-B7E0-5179A5B79D51}
 AppName=ServiceDesk
 AppVersion={#AppVersion}
-AppPublisher=ServiceDesk
+AppPublisher=Rafael Stolf Silva
 AppPublisherURL=https://github.com/RafaStolf/ServiceDesk
 AppSupportURL=https://github.com/RafaStolf/ServiceDesk/issues
 AppUpdatesURL=https://github.com/RafaStolf/ServiceDesk/releases/latest

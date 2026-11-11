@@ -8,6 +8,9 @@ public sealed class AtendimentoMonitorado : INotifyPropertyChanged
     public long Id { get; set; }
     public string Cliente { get; set; } = string.Empty;
     public string Telefone { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public bool TemEmail => !string.IsNullOrWhiteSpace(Email);
+    public string EmailText => TemEmail ? Email.Trim() : "E-mail não informado";
     public string Empresa { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public DateTimeOffset CriadoEm { get; set; }
@@ -37,10 +40,22 @@ public sealed class AtendimentoMonitorado : INotifyPropertyChanged
         private set => SetField(ref _tempoUltimaInteracaoAgente, value);
     }
 
+    private string _tempoUltimaInteracao = "Última interação não identificada";
+    public string TempoUltimaInteracao
+    {
+        get => _tempoUltimaInteracao;
+        private set => SetField(ref _tempoUltimaInteracao, value);
+    }
+
     public void AtualizarTempo(DateTimeOffset agora)
     {
-        TempoUltimaInteracaoAgente = DataValida(UltimaInteracaoAgenteEm) is { } ultima
-            ? FormatarDuracao(agora - ultima) : "Última interação não identificada";
+        var ultimaAgente = DataValida(UltimaInteracaoAgenteEm);
+        var ultimaCliente = DataValida(UltimaMensagemClienteEm);
+        TempoUltimaInteracaoAgente = ultimaAgente is { } resposta
+            ? FormatarDuracao(agora - resposta) : "Última interação não identificada";
+        TempoUltimaInteracao = ultimaCliente is { } cliente && (ultimaAgente is null || cliente > ultimaAgente)
+            ? $"Cliente: {FormatarDuracao(agora - cliente)}"
+            : ultimaAgente is { } agente ? $"Agente: {FormatarDuracao(agora - agente)}" : "Última interação não identificada";
     }
 
     private static string FormatarDuracao(TimeSpan intervalo) => intervalo.TotalDays >= 1

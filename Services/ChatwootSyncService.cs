@@ -129,9 +129,11 @@ public sealed class ChatwootSyncService : IDisposable
         var telefone = conversa.TryGetProperty("meta", out var metadados) && metadados.TryGetProperty("sender", out var contato)
             ? LerTexto(contato, "phone_number") : null;
         string? empresa = null;
+        string? email = null;
         if (conversa.TryGetProperty("meta", out var contexto) && contexto.ValueKind == JsonValueKind.Object
             && contexto.TryGetProperty("sender", out var contatoDados) && contatoDados.ValueKind == JsonValueKind.Object)
         {
+            email = LerTexto(contatoDados, "email");
             if (contatoDados.TryGetProperty("additional_attributes", out var adicionais) && adicionais.ValueKind == JsonValueKind.Object)
                 empresa = LerTexto(adicionais, "company_name");
             if (string.IsNullOrWhiteSpace(empresa)) empresa = LerAtributo(contatoDados, "empresa", "company");
@@ -144,6 +146,7 @@ public sealed class ChatwootSyncService : IDisposable
             Id = id,
             Cliente = string.IsNullOrWhiteSpace(remetente) ? $"Ticket #{id}" : remetente,
             Telefone = telefone ?? string.Empty,
+            Email = email?.Trim() ?? string.Empty,
             Empresa = empresa ?? string.Empty,
             Status = status,
             CriadoEm = LerData(conversa, "created_at") ?? DateTimeOffset.UtcNow,

@@ -57,3 +57,9 @@ Generated\ Files/
 /app/
 /installer-output/
 /ServiceDesk-Setup-*.exe
+
+# Material privado de assinatura
+*.pfx
+*.p12
+*.key
+*.pem

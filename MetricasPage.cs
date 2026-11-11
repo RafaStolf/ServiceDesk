@@ -67,6 +67,24 @@ public sealed class MetricasPage : Page
         var modos = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         modos.Children.Add(_fila); modos.Children.Add(_historico);
         controles.Children.Add(modos);
+        var guia = new StackPanel { Spacing = 10 };
+        guia.Children.Add(Texto("CCChatwoot v4.5.0 · build 75d3569. A disponibilidade dos dados depende desta instalação."));
+        guia.Children.Add(Texto("Primeira resposta (FRT): duração oficial até a primeira resposta. Espera do cliente (reply_time): duração oficial de espera por respostas subsequentes. Resolução: duração oficial até resolver; reaberturas podem gerar novos registros."));
+        guia.Children.Add(Texto("SLA: política aplicada pelo Chatwoot, com metas de primeira resposta, próxima resposta (NRT) e resolução. Última interação e alertas locais não medem cumprimento de SLA. Mensagem privada registra a análise interna; mensagem para o cliente integra a conversa pública."));
+        guia.Children.Add(Texto(OrientacoesN1.Contexto));
+        foreach (var (tituloEtapa, descricao) in OrientacoesN1.Etapas)
+        {
+            guia.Children.Add(Texto(tituloEtapa, 14, true));
+            guia.Children.Add(Texto(descricao));
+        }
+        guia.Children.Add(Texto(OrientacoesN1.Limites));
+        controles.Children.Add(new Expander
+        {
+            Header = "Entender as métricas e consultar o fluxo N1",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Content = new ScrollViewer { Content = guia, MaxHeight = 280, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }
+        });
         var datas = new Grid { ColumnSpacing = 12 };
         datas.ColumnDefinitions.Add(new ColumnDefinition()); datas.ColumnDefinitions.Add(new ColumnDefinition());
         datas.Children.Add(_inicio); Grid.SetColumn(_fim, 1); datas.Children.Add(_fim);
@@ -181,7 +199,7 @@ public sealed class MetricasPage : Page
         _conteudo.Children.Add(Texto($"Médias dos seus eventos oficiais · {baseTexto}. Quantidades representam registros, não tickets distintos. Horas úteis seguem o cadastro do Chatwoot."));
         var resumo = ResumoMetricas.Calcular(resultado.Tickets, uteis);
         var indicadores = new Grid { ColumnSpacing = 12, RowSpacing = 8 };
-        var cartoes = new[] { ("Primeira resposta", resumo.PrimeiraResposta), ("Respostas seguintes", resumo.RespostasSeguintes), ("Resolução", resumo.Resolucao) };
+        var cartoes = new[] { ("Primeira resposta", resumo.PrimeiraResposta), ("Espera do cliente", resumo.RespostasSeguintes), ("Resolução", resumo.Resolucao) };
         // Empilha em janelas estreitas para manter valores e rótulos legíveis.
         var colunas = _colunasResumo;
         for (var i = 0; i < colunas; i++) indicadores.ColumnDefinitions.Add(new ColumnDefinition());
@@ -211,7 +229,7 @@ public sealed class MetricasPage : Page
             painel.Children.Add(Texto(ticket.Contato, 20, true)); painel.Children.Add(Texto(ticket.Empresa));
             if (!ticket.PeriodoConfirmado) painel.Children.Add(Texto("Presença no período não confirmada · fora do resumo de SLA"));
             var valores = ResumoMetricas.Calcular(new[] { ticket }, uteis);
-            painel.Children.Add(Texto($"Médias · Primeira resposta: {PeriodoMetricas.Duracao(valores.PrimeiraResposta.MediaSegundos)} · Respostas seguintes: {PeriodoMetricas.Duracao(valores.RespostasSeguintes.MediaSegundos)} · Resolução: {PeriodoMetricas.Duracao(valores.Resolucao.MediaSegundos)}"));
+            painel.Children.Add(Texto($"Médias · Primeira resposta: {PeriodoMetricas.Duracao(valores.PrimeiraResposta.MediaSegundos)} · Espera do cliente: {PeriodoMetricas.Duracao(valores.RespostasSeguintes.MediaSegundos)} · Resolução: {PeriodoMetricas.Duracao(valores.Resolucao.MediaSegundos)}"));
             painel.Children.Add(Texto(ticket.Sla is { } politica ? $"SLA: {politica.Nome} · {politica.Situacao}" : "SLA: política não retornada"));
             if (ticket.Aviso is { } motivo) painel.Children.Add(Texto(motivo));
             else if (ticket.Eventos.Count == 0) painel.Children.Add(Texto("Sem eventos pessoais de resposta/resolução retornados para este recorte."));
@@ -233,7 +251,7 @@ public sealed class MetricasPage : Page
             painel.Children.Add(Texto($"{sla.Nome} · {sla.Situacao}", 18, true));
             painel.Children.Add(Texto(sla.ApenasHorarioComercial switch { true => "Política em horário comercial do Chatwoot", false => "Política em tempo corrido", _ => "Base de tempo da política não informada" }));
             painel.Children.Add(Texto($"Primeira resposta · meta: {PeriodoMetricas.Duracao(sla.PrimeiraRespostaMeta)} · vencimento: {PeriodoMetricas.Data(sla.PrimeiraRespostaVence)}"));
-            painel.Children.Add(Texto($"Respostas seguintes · meta: {PeriodoMetricas.Duracao(sla.ProximaRespostaMeta)} · vencimento: {PeriodoMetricas.Data(sla.ProximaRespostaVence)}"));
+            painel.Children.Add(Texto($"Próxima resposta (NRT) · meta: {PeriodoMetricas.Duracao(sla.ProximaRespostaMeta)} · vencimento: {PeriodoMetricas.Data(sla.ProximaRespostaVence)}"));
             painel.Children.Add(Texto($"Resolução · meta: {PeriodoMetricas.Duracao(sla.ResolucaoMeta)} · vencimento: {PeriodoMetricas.Data(sla.ResolucaoVence)}"));
             painel.Children.Add(Texto($"Conclusão do SLA: {PeriodoMetricas.Data(sla.ConcluidoEm)}"));
         }
@@ -247,7 +265,7 @@ public sealed class MetricasPage : Page
         await new ContentDialog { XamlRoot = XamlRoot, Title = $"Ticket #{ticket.Id}", Content = new ScrollViewer { Content = painel, MaxHeight = 450 }, CloseButtonText = "Fechar" }.ShowAsync();
     }
     private static string Situacao(string estado) => estado switch { "open" => "Em aberto", "snoozed" => "Adiado", "resolved" => "Resolvido", "pending" => "Pendente", _ => "Situação não informada" };
-    private static string NomeIndicador(string nome) => nome switch { "first_response" or "frt" => "Primeira resposta", "reply_time" or "nrt" => "Resposta seguinte", "conversation_resolved" or "rt" => "Resolução", _ => "Tipo não reconhecido" };
+    private static string NomeIndicador(string nome) => nome switch { "first_response" or "frt" => "Primeira resposta (FRT)", "reply_time" => "Espera do cliente", "nrt" => "Próxima resposta (NRT)", "conversation_resolved" or "rt" => "Resolução", _ => "Tipo não reconhecido" };
     private static TextBlock Texto(string texto, double tamanho = 14, bool destaque = false) => new() { Text = texto, TextWrapping = TextWrapping.Wrap, FontSize = tamanho, FontWeight = destaque ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal };
     private static Border Card(UIElement conteudo) => new() { Child = conteudo, Padding = new Thickness(16), CornerRadius = new CornerRadius(10), BorderThickness = new Thickness(1), BorderBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(60,128,128,128)), Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"] };
 }

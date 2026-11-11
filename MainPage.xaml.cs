@@ -28,6 +28,7 @@ public sealed partial class MainPage : Page
     private int _intervaloAtualizacaoMinutos;
     private bool _notificacoesAtivas;
     private int _limiteNotificacaoMinutos;
+    private string? _ultimoErroNotificacaoExibido;
     private int _colunas = 1;
     private string _filtroStatus = "Em aberto";
     private Frame? _quadroMetricas;
@@ -37,9 +38,6 @@ public sealed partial class MainPage : Page
         InitializeComponent();
         NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Required;
         Unloaded += (_, _) => { _relogio.Stop(); _sincronizador.Stop(); _aviso.Stop(); };
-        if (Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1"
-            && !CriarPreviaExportacao("Cabeçalho\r\nMensagem final").Text.Contains("Mensagem final"))
-            throw new InvalidOperationException("A prévia truncou o histórico.");
         _relogio.Tick += (_, _) => AtualizarTemposExibidos();
         _relogio.Start();
         _sincronizador.Tick += async (_, _) => await AtualizarAsync();
@@ -220,7 +218,7 @@ public sealed partial class MainPage : Page
         cabecalho.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         cabecalho.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         cabecalho.Children.Add(new TextBlock { Text = $"Ticket #{atendimento.Id}", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-        var opcoes = new Button { Content = new FontIcon { Glyph = "\uE712" }, Padding = new Thickness(8), MinWidth = 32, MinHeight = 32 };
+        var opcoes = new Button { Content = new FontIcon { Glyph = "\uE712" }, Padding = new Thickness(8), MinWidth = 40, MinHeight = 40 };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(opcoes, $"Opções do ticket {atendimento.Id}");
         ToolTipService.SetToolTip(opcoes, "Opções do ticket");
         var menu = new MenuFlyout();
@@ -237,16 +235,29 @@ public sealed partial class MainPage : Page
         Grid.SetColumn(opcoes, 1);
         cabecalho.Children.Add(opcoes);
         conteudo.Children.Add(cabecalho);
-        var contato = new TextBlock { Text = atendimento.Cliente, FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
+        var contato = new TextBlock { Text = atendimento.Cliente, FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
         ToolTipService.SetToolTip(contato, atendimento.Cliente);
         conteudo.Children.Add(contato);
-        var empresa = new TextBlock { Text = string.IsNullOrWhiteSpace(atendimento.Empresa) ? "Empresa não informada" : atendimento.Empresa, FontSize = 16, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis, Opacity = 0.8 };
+        var empresa = new TextBlock { Text = string.IsNullOrWhiteSpace(atendimento.Empresa) ? "Empresa não informada" : atendimento.Empresa, FontSize = 16, TextWrapping = TextWrapping.Wrap, Opacity = 0.8 };
         ToolTipService.SetToolTip(empresa, empresa.Text);
         conteudo.Children.Add(empresa);
+        var linhaEmail = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 2, 0, 2) };
+        linhaEmail.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        linhaEmail.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        linhaEmail.Children.Add(new FontIcon { Glyph = "\uE715", FontSize = 16, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 3, 0, 0) });
+        var email = new TextBlock { Text = atendimento.EmailText, FontSize = 14, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = false };
+        if (!atendimento.TemEmail)
+            email.Foreground = new SolidColorBrush(ActualTheme == ElementTheme.Dark
+                ? Windows.UI.Color.FromArgb(255, 255, 153, 153)
+                : Windows.UI.Color.FromArgb(255, 176, 0, 32));
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(email, $"E-mail do contato: {atendimento.EmailText}");
+        Grid.SetColumn(email, 1);
+        linhaEmail.Children.Add(email);
+        conteudo.Children.Add(linhaEmail);
         conteudo.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Windows.UI.Color.FromArgb(50, 128, 128, 128)), Margin = new Thickness(0, 4, 0, 2) });
         conteudo.Children.Add(new TextBlock { Text = "Última interação", Opacity = 0.7 });
         var tempo = new TextBlock { FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
-        tempo.SetBinding(TextBlock.TextProperty, new Binding { Source = atendimento, Path = new PropertyPath(nameof(AtendimentoMonitorado.TempoUltimaInteracaoAgente)), Mode = BindingMode.OneWay });
+        tempo.SetBinding(TextBlock.TextProperty, new Binding { Source = atendimento, Path = new PropertyPath(nameof(AtendimentoMonitorado.TempoUltimaInteracao)), Mode = BindingMode.OneWay });
         conteudo.Children.Add(tempo);
         if (_filtroStatus == "Todos" || atendimento.EstaAdiado)
             conteudo.Children.Add(new TextBlock { Text = atendimento.SituacaoText, Opacity = 0.7, TextWrapping = TextWrapping.Wrap });
@@ -280,20 +291,17 @@ public sealed partial class MainPage : Page
     {
         if (!_notificacoesAtivas) return;
         var novosAlertas = _notificacoes.NotificarAtendimentosSemInteracao(_atendimentos, _limiteNotificacaoMinutos, _preferencias);
+        if (_notificacoes.UltimoErro is { } erro && erro != _ultimoErroNotificacaoExibido)
+        {
+            _ultimoErroNotificacaoExibido = erro;
+            MostrarAviso("Notificações do Windows", erro, InfoBarSeverity.Warning);
+        }
+        else if (_notificacoes.UltimoErro is null) _ultimoErroNotificacaoExibido = null;
         if (novosAlertas.Count == 0) return;
         var primeiro = novosAlertas[0];
         AlertaInteracaoInfo.Title = novosAlertas.Count == 1 ? $"Ticket #{primeiro.Id}" : $"{novosAlertas.Count} tickets";
         AlertaInteracaoInfo.Message = $"{primeiro.Cliente} · Última interação {primeiro.TempoUltimaInteracaoAgente}";
         AlertaInteracaoInfo.IsOpen = true;
-    }
-
-    private static TextBox CriarPreviaExportacao(string texto)
-    {
-        // Habilite múltiplas linhas antes de atribuir o histórico: o controle
-        // em modo de uma linha descarta o conteúdo após a primeira quebra.
-        var previa = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 350 };
-        previa.Text = texto;
-        return previa;
     }
 
     private async Task ExportarAtendimentoAsync(AtendimentoMonitorado atendimento, bool copiar)
@@ -313,67 +321,19 @@ public sealed partial class MainPage : Page
                 MostrarAviso("Texto copiado", $"Ticket #{atendimento.Id} copiado.", InfoBarSeverity.Success);
                 return;
             }
-            var previa = CriarPreviaExportacao(exportacao.Texto);
-            var conteudo = new StackPanel { Spacing = 12 };
-            conteudo.Children.Add(new TextBlock
+            var downloads = await Windows.Storage.StorageFolder.GetFolderFromPathAsync(PastaDownloads.Obter());
+            var pasta = await downloads.CreateFolderAsync($"Ticket-{atendimento.Id}", Windows.Storage.CreationCollisionOption.GenerateUniqueName);
+            try
             {
-                Text = "Revise o histórico e salve como Markdown (.md) para anexar no ChatGPT. Com a opção de mídias marcada, escolha uma pasta para salvar o .md e os arquivos juntos. O .md sozinho contém apenas o texto e as referências aos anexos; áudio/vídeo podem exigir conversão.",
-                TextWrapping = TextWrapping.Wrap
-            });
-            conteudo.Children.Add(previa);
-            var incluirMidias = new CheckBox { Content = "Salvar também imagens, vídeos e áudios na mesma pasta do .md", IsChecked = true };
-            conteudo.Children.Add(incluirMidias);
-            var dialogo = new ContentDialog
-            {
-                XamlRoot = XamlRoot, Title = $"Exportar ticket #{atendimento.Id}", Content = conteudo,
-                PrimaryButtonText = "Copiar texto", SecondaryButtonText = "Salvar arquivo", CloseButtonText = "Cancelar"
-            };
-            var resultado = await dialogo.ShowAsync();
-            if (resultado == ContentDialogResult.None) return;
-            if (resultado == ContentDialogResult.Primary)
-            {
-                var dados = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                dados.SetText(previa.Text);
-                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dados);
+                MostrarAviso("Exportando chat", $"Baixando histórico e {exportacao.Anexos.Count} anexo(s)...", InfoBarSeverity.Informational);
+                await PacoteAtendimento.SalvarPastaAsync(pasta.Path, exportacao, CancellationToken.None, $"Ticket-{atendimento.Id}.md");
             }
-            else
+            catch
             {
-                if (incluirMidias.IsChecked == true)
-                {
-                    var seletor = new Windows.Storage.Pickers.FolderPicker();
-                    seletor.FileTypeFilter.Add("*");
-                    WinRT.Interop.InitializeWithWindow.Initialize(seletor,
-                        WinRT.Interop.WindowNative.GetWindowHandle(((App)Application.Current).MainWindow));
-                    var pasta = await seletor.PickSingleFolderAsync();
-                    if (pasta is null) return;
-                    var pastaAtendimento = await pasta.CreateFolderAsync($"Ticket-{atendimento.Id}", Windows.Storage.CreationCollisionOption.GenerateUniqueName);
-                    var destino = pastaAtendimento.Path;
-                    try
-                    {
-                        StatusInfo.Title = "Salvando histórico e mídias";
-                        StatusInfo.Message = $"Baixando {exportacao.Anexos.Count} anexo(s)...";
-                        StatusInfo.Severity = InfoBarSeverity.Informational;
-                        StatusInfo.IsOpen = true;
-                        await PacoteAtendimento.SalvarPastaAsync(destino, exportacao with { Texto = previa.Text }, CancellationToken.None, $"Ticket-{atendimento.Id}.md");
-                    }
-                    catch
-                    {
-                        Directory.Delete(destino, recursive: true);
-                        throw;
-                    }
-                }
-                else
-                {
-                    var seletor = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"Ticket-{atendimento.Id}" };
-                    seletor.FileTypeChoices.Add("Markdown", new List<string> { ".md" });
-                    WinRT.Interop.InitializeWithWindow.Initialize(seletor,
-                        WinRT.Interop.WindowNative.GetWindowHandle(((App)Application.Current).MainWindow));
-                    var arquivo = await seletor.PickSaveFileAsync();
-                    if (arquivo is null) return;
-                    await Windows.Storage.FileIO.WriteTextAsync(arquivo, previa.Text);
-                }
+                await pasta.DeleteAsync(Windows.Storage.StorageDeleteOption.PermanentDelete);
+                throw;
             }
-            MostrarAviso(resultado == ContentDialogResult.Primary ? "Texto copiado" : "Arquivo salvo", $"Ticket #{atendimento.Id}.", InfoBarSeverity.Success);
+            MostrarAviso("Chat exportado", $"Salvo em {pasta.Path}", InfoBarSeverity.Success);
         }
         catch (Exception ex)
         {

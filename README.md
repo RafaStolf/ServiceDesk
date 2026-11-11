@@ -1,6 +1,6 @@
 # ServiceDesk
 
-Aplicativo Windows para acompanhar conversas atribuídas ao analista no Chatwoot. Os cards priorizam identificação, empresa e ID do ticket e mostram o tempo desde a última interação identificada do agente atribuído.
+Aplicativo Windows para acompanhar conversas atribuídas ao analista no Chatwoot. Os cards priorizam identificação, empresa e ID do ticket e mostram a interação mais recente identificada entre cliente e agente atribuído, indicando quem enviou. Os alertas continuam considerando somente a resposta do agente.
 
 ## O que o aplicativo faz
 
@@ -38,7 +38,7 @@ Abra a pasta que contém `ServiceDesk.csproj`. O arquivo principal da tela é `M
 
 ## Distribuição
 
-Baixe `ServiceDesk-Setup-win-x64.exe` em [Releases](https://github.com/RafaStolf/ServiceDesk/releases/latest). O instalador inclui as dependências e não exige Git. O ZIP portátil também está disponível. A versão instalada verifica atualizações em **Configurações → Versão**.
+Baixe `ServiceDesk-Setup-win-x64.exe` em [Releases](https://github.com/RafaStolf/ServiceDesk/releases/latest). O instalador inclui as dependências e não exige Git. O ZIP portátil também está disponível. A versão instalada verifica atualizações em **Configurações → Sobre**.
 
 Cada pessoa deverá configurar sua própria chave API, conta e caixa de entrada após instalar. Não inclua credenciais em commits, releases ou instaladores.
 
@@ -48,11 +48,9 @@ Cada pessoa deverá configurar sua própria chave API, conta e caixa de entrada 
 
 ## Usar um atendimento no ChatGPT
 
-No menu **…** do card, escolha **Copiar texto**, **Exportar chat** ou **Abrir no Chatwoot**. Em **Exportar chat**, Revise o histórico completo na prévia editável. **Copiar texto** copia o conteúdo; **Salvar arquivo** exporta um arquivo **.md (Markdown)**, pronto para anexar em um chat do projeto Atendimentos.
+No menu **…** do card, escolha **Copiar texto**, **Exportar chat** ou **Abrir no Chatwoot**. **Copiar texto** copia o histórico público para a área de transferência. **Exportar chat** salva diretamente na pasta Downloads configurada no Windows, sem janela de prévia ou seleção de destino.
 
-O Markdown contém a identificação, situação, datas e mensagens públicas em ordem cronológica, com referências aos anexos. Ele não incorpora os arquivos de imagem, áudio ou vídeo. Para levá-los junto, mantenha marcada a opção de mídias e escolha uma pasta. O aplicativo cria uma subpasta do atendimento com nome como `Atendimento-19656`, contendo `Atendimento-19656.md` e os anexos originais juntos, sem ZIP. No horário de cada mensagem, o histórico informa que foi enviada uma imagem, vídeo ou áudio e inclui o nome/link do arquivo correspondente. Anexe o histórico e as mídias no mesmo chat. Notas privadas e eventos são excluídos.
-
-Não há envio automático ao ChatGPT. A análise depende dos formatos e limites disponíveis; áudio e vídeo podem exigir transcrição ou conversão, que o ServiceDesk ainda não realiza. Se uma mídia estiver indisponível, o pacote não é copiado ao destino como se estivesse completo.
+Cada exportação cria uma subpasta `Ticket-19680`, com o histórico Markdown e os anexos originais. Exportações repetidas ganham sufixos para preservar as anteriores. Notas privadas e eventos são excluídos. Se o download de uma mídia falhar, a pasta incompleta é removida e o aplicativo informa o erro. Não há envio automático ao ChatGPT, transcrição de áudio ou conversão de vídeo.
 
 ## Download e atualização (Windows x64)
 
@@ -62,7 +60,7 @@ O instalador usa `%LOCALAPPDATA%\Programs\ServiceDesk`, sem exigir administrador
 
 Como alternativa portátil, baixe **ServiceDesk-win-x64.zip**, extraia todo o conteúdo em uma pasta e abra **ServiceDesk.exe**. A pasta `Assets` do código-fonte contém imagens; os arquivos para download ficam nos anexos da release no GitHub. Não é necessário Visual Studio nem .NET instalado. Feche a versão antiga e atualize seu atalho para o novo executável. O pacote portátil não substitui automaticamente uma instalação MSIX.
 
-Em **Configurações**, a aba **Chatwoot** reúne endereço HTTPS, conta, chave da API, agente e caixa de entrada. A aba **Fila** controla a atualização automática e o intervalo. **Aparência** permite escolher tema e cor; **Alertas** controla o limite, as notificações do Windows e o som. A aba **Versão** mostra a versão instalada, **Verificar atualizações** e **Atualizar**.
+Em **Configurações**, a aba **Chatwoot** reúne endereço HTTPS, conta, chave da API, agente e caixa de entrada. A aba **Fila** controla a atualização automática e o intervalo. **Aparência** permite escolher tema e cor; **Alertas** controla o limite, as notificações do Windows e o som. A aba **Sobre** mostra a versão instalada, **Verificar atualizações** e **Atualizar**.
 
 Ao verificar, o aplicativo consulta as versões públicas no GitHub. Havendo versão nova, **Atualizar** baixa o pacote, verifica SHA-256, fecha o aplicativo, substitui os arquivos e reinicia no mesmo caminho, preservando os atalhos e configurações. Um backup permite restaurar os arquivos anteriores se a substituição ou inicialização falhar. A atualização exige Windows x64 e permissão de escrita na pasta da versão portátil. Uma instalação MSIX precisa migrar para a versão portátil; não é substituída por esse mecanismo. As versões antigas que apenas abrem a página de download precisam atualizar manualmente uma última vez.
 
@@ -88,6 +86,10 @@ O ícone da Centrium é preservado. As preferências visuais ficam em `%USERPROF
 
 ## Métricas e SLA
 
+Referência informada: **CCChatwoot v4.5.0, build `75d3569`**. A tela inclui um guia recolhível com as definições das métricas e as cinco situações do fluxo N1. Por decisão do usuário, o fluxograma prevalece nos prazos e no encerramento por falta de retorno. Os prazos operacionais são orientação, não metas automáticas de SLA. A etapa do atendimento não é inferida pelo aplicativo.
+
+O indicador `reply_time` é apresentado como **Espera do cliente**; **Próxima resposta (NRT)** identifica a meta do SLA. Mensagens privadas são distinguidas de mensagens para o cliente: a leitura aceita `private` da API oficial e `is.private` literal ou aninhado para compatibilidade. Uma marcação privada verdadeira prevalece e exclui a mensagem da exportação e dos contadores públicos. O contrato específico da build personalizada ainda precisa ser confirmado com dados reais.
+
 Abra **Métricas** no topo para consultar a fila atual ou o histórico. No histórico, escolha datas inclusivas no fuso de Brasília e clique em Atualizar, ou use Hoje, 7 dias e 30 dias. As médias de primeira resposta, respostas seguintes e resolução usam eventos oficiais do usuário autenticado; cada indicador informa seu número de registros. Reaberturas podem produzir vários eventos de resolução para o mesmo ticket. A base de tempo alterna entre corrido e útil sem alterar a política do Chatwoot.
 
 **Ver detalhes** mostra metas, vencimentos e ocorrências retornadas pela API. O contador de última interação da fila é independente desses indicadores. Dados indisponíveis não viram zero nem SLA cumprido; a edição, as permissões e as políticas da instalação determinam a disponibilidade.
@@ -95,3 +97,17 @@ Abra **Métricas** no topo para consultar a fila atual ou o histórico. No hist�
 O histórico consulta tickets **atualmente atribuídos** ao usuário; transferidos podem não aparecer. O período filtra a criação dos eventos de relatório, ocorrências ou atualização do SLA; o estado do SLA mostrado é o atual. Tickets sem consulta suficiente para confirmar o período são identificados e ficam fora do resumo de SLA. A leitura é sob demanda, cancelável, limitada a 10 páginas por situação e 250 tickets, com avisos de resultados parciais. Após três recusas/ausências consecutivas dos eventos, a consulta desses eventos é interrompida e informada; uma falha isolada não impede os tickets seguintes. Um limite HTTP 429 interrompe novas consultas.
 
 A integração continua somente GET. Nenhuma meta contratual, pausa ou calendário é presumido localmente. Horas úteis e prazos nativos seguem o cadastro do Chatwoot.
+
+## Assinatura de código
+
+Consulte [docs/ASSINATURA.md](docs/ASSINATURA.md) para o certificado próprio, sua guarda e a ordem de assinatura no Windows. O certificado foi gerado; o workflow ainda não o utiliza.
+
+## E-mail nos cards
+
+O card exibe o e-mail cadastrado no contato (`meta.sender.email`), abaixo da empresa, sem seleção para cópia ou abertura de cliente de e-mail. Quando estiver ausente, vazio ou composto apenas por espaços, mostra **E-mail não informado** em vermelho, com cor adaptada ao tema claro ou escuro. O endereço não é inferido das mensagens. Nomes, empresas e e-mails quebram linha conforme a largura disponível.
+
+## Diagnóstico de notificações do Windows
+
+Em **Configurações → Alertas**, ative **Notificações do Windows** e use **Testar notificação do Windows**. O teste independe de tickets e do limite de minutos. O envio aceito pelo Windows não garante um banner: confira também a central de notificações e o modo Não incomodar. Permissões desabilitadas são informadas na tela; falhas assíncronas de entrega são registradas em `%LOCALAPPDATA%\ServiceDesk\notificacoes.log`, sem conteúdo das conversas.
+
+Os alertas automáticos atuais exigem ticket não adiado com resposta pública anterior identificada do agente atribuído. Tickets ainda sem essa resposta não disparam alerta por mensagem recebida. Uma falha síncrona no envio ao Windows permite nova tentativa após cinco minutos, sem repetir o alerta interno. O teste e a entrega real precisam ser validados no Windows; a identidade pelo atalho do menu Iniciar depende da instalação.
