@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Models/AtendimentoMonitorado.cs" Link="AtendimentoMonitorado.cs" />
+    <Compile Include="../../Services/ChatwootSyncService.cs" Link="ChatwootSyncService.cs" />
+    <Compile Include="../../Services/MensagemChatwoot.cs" Link="MensagemChatwoot.cs" />
+    <Compile Include="../../Services/ConfiguracaoChatwoot.cs" Link="ConfiguracaoChatwoot.cs" />
+    <Compile Include="../../Services/ConfiguracaoLocal.cs" Link="ConfiguracaoLocal.cs" />
+    <Compile Include="../../Services/ExportacaoAtendimento.cs" Link="ExportacaoAtendimento.cs" />
+  </ItemGroup>
+</Project>

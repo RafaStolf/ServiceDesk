@@ -9,10 +9,14 @@ public sealed class ChatwootSyncService : IDisposable
     private readonly HttpClient _httpClient;
     private readonly ConfiguracaoChatwoot _configuracao;
 
-    public ChatwootSyncService(ConfiguracaoChatwoot configuracao)
+    public ChatwootSyncService(ConfiguracaoChatwoot configuracao) : this(configuracao, new HttpClient()) { }
+
+    internal ChatwootSyncService(ConfiguracaoChatwoot configuracao, HttpClient cliente)
     {
         _configuracao = configuracao;
-        _httpClient = new HttpClient { BaseAddress = new Uri(configuracao.BaseUrl + "/"), Timeout = TimeSpan.FromSeconds(30) };
+        _httpClient = cliente;
+        _httpClient.BaseAddress = new Uri(configuracao.BaseUrl + "/");
+        _httpClient.Timeout = TimeSpan.FromSeconds(30);
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", configuracao.Token);
         _httpClient.DefaultRequestHeaders.Add("api_access_token", configuracao.Token);
     }
@@ -57,13 +61,13 @@ public sealed class ChatwootSyncService : IDisposable
         }
         var arquivos = new List<AnexoAtendimento>();
         var texto = new System.Text.StringBuilder();
-        texto.AppendLine($"# Atendimento #{atendimento.Id}");
+        texto.AppendLine($"# Conversa #{atendimento.Id}");
         texto.AppendLine();
-        texto.AppendLine($"Cliente: {atendimento.Cliente}");
+        texto.AppendLine($"Contato: {atendimento.Cliente}");
         texto.AppendLine($"Empresa: {atendimento.Empresa}");
-        texto.AppendLine($"Ticket: {atendimento.Ticket}");
+        texto.AppendLine($"Ticket externo: {atendimento.Ticket}");
         texto.AppendLine($"Situação: {atendimento.SituacaoText}");
-        texto.AppendLine($"Abertura: {atendimento.CriadoEm:O}");
+        texto.AppendLine($"Criação: {atendimento.CriadoEm:O}");
         texto.AppendLine($"Exportado em: {DateTimeOffset.Now:O}");
         texto.AppendLine("Histórico público em ordem cronológica. Notas privadas e eventos excluídos. Anexos identificados pelo nome do arquivo no pacote de exportação.");
         texto.AppendLine();
@@ -75,7 +79,7 @@ public sealed class ChatwootSyncService : IDisposable
         {
             var nome = mensagem.TryGetProperty("sender", out var remetente) && remetente.ValueKind == JsonValueKind.Object
                 ? LerTexto(remetente, "name") : null;
-            var autor = nome ?? (EMensagemDoCliente(mensagem) ? "Cliente" : "Atendente / bot");
+            var autor = nome ?? (EMensagemDoContato(mensagem) ? "Contato" : "Agente / bot");
             var data = LerData(mensagem, "created_at")?.ToString("O") ?? "Data indisponível";
             texto.AppendLine($"## {data} — {autor}");
             texto.AppendLine();
@@ -133,7 +137,7 @@ public sealed class ChatwootSyncService : IDisposable
             ? LerTexto(contato, "phone_number") : null;
         var empresa = LerAtributo(conversa, "empresa", "company");
         var ticket = LerAtributo(conversa, "ticket", "ticket_id");
-        var assunto = conversa.TryGetProperty("last_non_activity_message", out var ultimaMensagem)
+        var assunto = conversa.TryGetProperty("last_non_activity_message", out var ultimaMensagem) && EMensagemPublica(ultimaMensagem)
             ? LerTexto(ultimaMensagem, "content") : null;
         var status = LerTexto(conversa, "status") ?? "open";
 
@@ -144,36 +148,21 @@ public sealed class ChatwootSyncService : IDisposable
             Telefone = telefone ?? string.Empty,
             Empresa = empresa ?? string.Empty,
             Ticket = ticket ?? string.Empty,
-            Assunto = string.IsNullOrWhiteSpace(assunto) ? "Sem assunto disponível" : Resumir(assunto),
+            Assunto = string.IsNullOrWhiteSpace(assunto) ? "Sem prévia de mensagem pública" : Resumir(assunto),
             Status = status,
             CriadoEm = LerData(conversa, "created_at") ?? DateTimeOffset.UtcNow,
             UltimaInteracaoMinhaEm = interacoes.UltimaMinha,
             UltimaMensagemClienteEm = interacoes.UltimaCliente,
-            UltimaInteracaoChatEm = interacoes.UltimaNoChat ?? LerData(conversa, "last_activity_at") ?? LerData(ultimaMensagem, "created_at"),
+            UltimaMensagemPublicaEm = interacoes.UltimaNoChat,
             AdiadoAte = LerData(conversa, "snoozed_until")
         };
     }
 
-    private static bool EMensagemPublica(JsonElement mensagem)
-    {
-        if (mensagem.TryGetProperty("private", out var privada) && privada.ValueKind == JsonValueKind.True) return false;
-        if (mensagem.TryGetProperty("message_type", out var tipo) && tipo.ValueKind == JsonValueKind.Number && tipo.GetInt32() == 2) return false;
-        return true;
-    }
+    private static bool EMensagemPublica(JsonElement mensagem) => MensagemChatwoot.Publica(mensagem);
 
-    private static bool EAcaoDoUsuario(JsonElement mensagem, long usuarioId)
-    {
-        if (!EMensagemPublica(mensagem)) return false;
-        if (!string.Equals(LerTexto(mensagem, "sender_type"), "User", StringComparison.OrdinalIgnoreCase)) return false;
-        if (mensagem.TryGetProperty("sender_id", out var senderId) && senderId.ValueKind == JsonValueKind.Number && senderId.GetInt64() == usuarioId) return true;
-        return mensagem.TryGetProperty("sender", out var sender)
-            && sender.TryGetProperty("id", out var id)
-            && id.ValueKind == JsonValueKind.Number
-            && id.GetInt64() == usuarioId;
-    }
+    private static bool EMensagemDoAgente(JsonElement mensagem, long usuarioId) => MensagemChatwoot.DoAgente(mensagem, usuarioId);
 
-    private static bool EMensagemDoCliente(JsonElement mensagem) => EMensagemPublica(mensagem)
-        && string.Equals(LerTexto(mensagem, "sender_type"), "Contact", StringComparison.OrdinalIgnoreCase);
+    private static bool EMensagemDoContato(JsonElement mensagem) => MensagemChatwoot.DoContato(mensagem);
 
     private sealed record InteracoesDaConversa(DateTimeOffset? UltimaMinha, DateTimeOffset? UltimaCliente, DateTimeOffset? UltimaAtividade)
     {
@@ -195,24 +184,27 @@ public sealed class ChatwootSyncService : IDisposable
             var mensagens = documento.RootElement.GetProperty("payload").EnumerateArray().Select(mensagem => mensagem.Clone()).ToList();
             if (mensagens.Count == 0) break;
 
-            // Inclui mensagens e eventos de sistema (flag, status e outras mudanças do Chatwoot).
+            // Atividade pública inclui mensagens de contatos, agentes e bots; exclui notas privadas e eventos.
             ultimaAtividade ??= mensagens.Where(EMensagemPublica).Select(mensagem => LerData(mensagem, "created_at"))
                 .Where(data => data is not null).Select(data => data!.Value).DefaultIfEmpty().Max();
             if (ultimaAtividade == default) ultimaAtividade = null;
 
-            ultimaMinha ??= mensagens.Where(mensagem => EAcaoDoUsuario(mensagem, usuarioId))
+            ultimaMinha ??= mensagens.Where(mensagem => EMensagemDoAgente(mensagem, usuarioId))
                 .Select(mensagem => LerData(mensagem, "created_at")).Where(data => data is not null)
                 .Select(data => data!.Value).DefaultIfEmpty().Max();
             if (ultimaMinha == default) ultimaMinha = null;
 
-            ultimaCliente ??= mensagens.Where(EMensagemDoCliente)
+            ultimaCliente ??= mensagens.Where(EMensagemDoContato)
                 .Select(mensagem => LerData(mensagem, "created_at")).Where(data => data is not null)
                 .Select(data => data!.Value).DefaultIfEmpty().Max();
             if (ultimaCliente == default) ultimaCliente = null;
 
             if (ultimaMinha is not null && ultimaCliente is not null) break;
 
-            before = mensagens.Min(mensagem => mensagem.GetProperty("id").GetInt64());
+            var menorId = mensagens.Min(mensagem => mensagem.GetProperty("id").GetInt64());
+            if (before is not null && menorId >= before.Value)
+                throw new InvalidOperationException("Não foi possível obter as mensagens: a paginação não avançou.");
+            before = menorId;
         }
         return new InteracoesDaConversa(ultimaMinha, ultimaCliente, ultimaAtividade);
     }
@@ -228,7 +220,7 @@ public sealed class ChatwootSyncService : IDisposable
 
     private static DateTimeOffset? LerData(JsonElement elemento, string propriedade)
     {
-        if (!elemento.TryGetProperty(propriedade, out var valor) || valor.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined) return null;
+        if (elemento.ValueKind != JsonValueKind.Object || !elemento.TryGetProperty(propriedade, out var valor) || valor.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined) return null;
         if (valor.ValueKind == JsonValueKind.Number && valor.TryGetInt64(out var epoch)) return ConverterEpoch(epoch);
         if (valor.ValueKind != JsonValueKind.String) return null;
         if (long.TryParse(valor.GetString(), out var epochTexto)) return ConverterEpoch(epochTexto);
@@ -243,7 +235,7 @@ public sealed class ChatwootSyncService : IDisposable
     }
 
     private static string? LerTexto(JsonElement elemento, string propriedade) =>
-        elemento.TryGetProperty(propriedade, out var valor) && valor.ValueKind == JsonValueKind.String ? valor.GetString() : null;
+        MensagemChatwoot.Texto(elemento, propriedade);
 
     private static string? LerAtributo(JsonElement conversa, params string[] nomes)
     {

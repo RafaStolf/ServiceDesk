@@ -30,9 +30,9 @@ ServiceDesk/
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `Models/AtendimentoMonitorado.cs` | Representa uma conversa e calcula o tempo de chat aberto e última interação. |
-| `Services/ChatwootSyncService.cs` | Faz requisições de leitura ao Chatwoot, filtra Inbox e ignora notas privadas/eventos do sistema. |
-| `Services/ConfiguracaoChatwoot.cs` | Lê e valida URL, chave API, conta, usuário e Inbox do Chatwoot. |
+| `Models/AtendimentoMonitorado.cs` | Representa uma conversa e calcula o tempo desde a criação da conversa e última interação. |
+| `Services/ChatwootSyncService.cs` | Faz requisições de leitura ao Chatwoot, filtra caixa de entrada e ignora notas privadas/eventos do sistema. |
+| `Services/ConfiguracaoChatwoot.cs` | Lê e valida URL, chave API, conta, agente e caixa de entrada do Chatwoot. |
 | `Services/ConfiguracaoLocal.cs` | Localiza e grava `application.properties` no perfil Windows do usuário. |
 | `Services/ConfiguracaoAtualizacaoService.cs` | Salva as preferências de atualização e notificação no Windows. |
 | `Services/MonitoramentoService.cs` | Coordena a sincronização e entrega as conversas para a tela. |
@@ -59,6 +59,6 @@ ServiceDesk/
 
 1. `MainPage` solicita atualização ao `MonitoramentoService`.
 2. `MonitoramentoService` cria `ChatwootSyncService` com a configuração local.
-3. `ChatwootSyncService` consulta conversas do Inbox e as mensagens públicas.
+3. `ChatwootSyncService` consulta conversas da caixa de entrada e as mensagens públicas.
 4. Os dados são convertidos em `AtendimentoMonitorado` e exibidos nos cards.
 5. `ServicoNotificacoes` alerta quando uma conversa não recebe mensagem pública dentro do limite configurado.

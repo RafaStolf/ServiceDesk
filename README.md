@@ -5,8 +5,8 @@ Aplicativo Windows para acompanhar conversas atribuídas ao analista no Chatwoot
 ## O que o aplicativo faz
 
 - Consulta conversas abertas e adiadas atribuídas ao analista no Chatwoot.
-- Permite filtrar por situação e pesquisar cliente, telefone, empresa, ticket, assunto ou ID.
-- Mostra em cada card o tempo de chat aberto e o tempo desde a última mensagem pública.
+- Permite filtrar por situação e pesquisar cliente, telefone, empresa, ticket externo, mensagem ou ID.
+- Mostra em cada card o tempo desde a criação da conversa e o tempo desde a última mensagem pública.
 - Ignora notas privadas e eventos do sistema para o cálculo de interação.
 - Exibe alertas locais configuráveis por tempo sem interação.
 - Abre a conversa selecionada diretamente no Chatwoot.
@@ -15,7 +15,7 @@ O ServiceDesk somente lê dados do Chatwoot. Ele não envia mensagens, não alte
 
 ## Configuração inicial
 
-Ao abrir o aplicativo, selecione **Chatwoot** no canto superior direito e informe a chave API pessoal, o ID do usuário e o ID do Inbox. A chave fica oculta por padrão; use **Mostrar chave da API** apenas quando necessário.
+Ao abrir o aplicativo, selecione **Chatwoot** no canto superior direito e informe a chave API pessoal, o ID do usuário e o ID da caixa de entrada. A chave fica oculta por padrão; use **Mostrar chave da API** apenas quando necessário.
 
 A configuração é salva somente no perfil Windows do usuário, em `%USERPROFILE%\.servicedesk\application.properties`, e não deve ser enviada ao GitHub. Em **Configurações → Atendimentos**, escolha o intervalo de sincronização e o limite de minutos que gera uma notificação.
 
@@ -40,7 +40,7 @@ Abra a pasta que contém `ServiceDesk.csproj`. O arquivo principal da tela é `M
 
 O projeto é um aplicativo WinUI empacotado (MSIX). Quando estiver aprovado, gere o pacote pelo perfil `Properties/PublishProfiles/win-x64.pubxml` e entregue o instalador aos colegas.
 
-Cada pessoa deverá configurar sua própria chave API, ID de usuário e Inbox após instalar. Não inclua credenciais em commits, releases ou instaladores.
+Cada pessoa deverá configurar sua própria chave API, ID de agente e caixa de entrada após instalar. Não inclua credenciais em commits, releases ou instaladores.
 
 ## Documentos de processo
 
@@ -62,7 +62,7 @@ O instalador usa `%LOCALAPPDATA%\Programs\ServiceDesk`, sem exigir administrador
 
 Como alternativa portátil, baixe **ServiceDesk-win-x64.zip**, extraia todo o conteúdo em uma pasta e abra **ServiceDesk.exe**. A pasta `Assets` do código-fonte contém imagens; os arquivos para download ficam nos anexos da release no GitHub. Não é necessário Visual Studio nem .NET instalado. Feche a versão antiga e atualize seu atalho para o novo executável. O pacote portátil não substitui automaticamente uma instalação MSIX.
 
-Em **Configurações**, a aba **Chatwoot** reúne endereço HTTPS, conta, chave da API, usuário e Inbox. A aba **Atendimentos** controla a atualização automática da fila, intervalo e alertas. A aba **Versão** mostra a versão instalada, **Verificar atualizações** e **Atualizar**.
+Em **Configurações**, a aba **Chatwoot** reúne endereço HTTPS, conta, chave da API, agente e caixa de entrada. A aba **Atendimentos** controla a atualização automática da fila, intervalo e alertas. A aba **Versão** mostra a versão instalada, **Verificar atualizações** e **Atualizar**.
 
 Ao verificar, o aplicativo consulta as versões públicas no GitHub. Havendo versão nova, **Atualizar** baixa o pacote, verifica SHA-256, fecha o aplicativo, substitui os arquivos e reinicia no mesmo caminho, preservando os atalhos e configurações. Um backup permite restaurar os arquivos anteriores se a substituição ou inicialização falhar. A atualização exige Windows x64 e permissão de escrita na pasta da versão portátil. Uma instalação MSIX precisa migrar para a versão portátil; não é substituída por esse mecanismo. As versões antigas que apenas abrem a página de download precisam atualizar manualmente uma última vez.
 
@@ -79,3 +79,7 @@ Ao abrir esta versão pela primeira vez, a inicialização com Windows e a perma
 Fechar a janela envia para o ícone junto ao relógio. Clique no ícone para abrir, ou use o botão direito → **Abrir ServiceDesk** / **Sair**. Abrir novamente pelo atalho mostra a instância existente. Em **Configurações → Geral** é possível desligar o início com Windows ou a permanência em segundo plano. A atualização encerra completamente o processo antes de substituir os arquivos. Se o Windows não disponibilizar o ícone, a janela permanece acessível.
 
 A inicialização automática registra somente o executável no perfil do usuário (HKCU Run), sem privilégios de administrador nem credenciais do Chatwoot. Mantenha o executável em uma pasta permanente. O Windows também permite desabilitar aplicativos de inicialização pelo Gerenciador de Tarefas; o ServiceDesk não reabilita uma preferência desligada dentro do aplicativo.
+
+## Contrato e nomes do Chatwoot
+
+Consulte [o glossário e os critérios de validação](docs/GLOSSARIO-CHATWOOT.md). O contador mede tempo sem mensagem pública, não tempo de resposta ou SLA. O campo de remetente do endpoint é `sender.type`/`sender.id`.

@@ -25,7 +25,7 @@ Janela WinUI (apresentação)
 
 1. A integração Chatwoot é somente leitura.
 2. A última interação usada no contador é uma mensagem pública; notas privadas e eventos do sistema são ignorados.
-3. `snoozed` ou `snoozed_until` futuro representa atendimento adiado.
+3. `status=snoozed` representa conversa adiada; `snoozed_until` informa a data, quando definida.
 
 ## Entrega incremental
 
@@ -34,6 +34,6 @@ Janela WinUI (apresentação)
 
 ## Operação e segurança
 
-- A configuração preferencial está em `%USERPROFILE%\.servicedesk\application.properties`; ela inclui chave API, ID do usuário e ID do Inbox.
+- A configuração preferencial está em `%USERPROFILE%\.servicedesk\application.properties`; ela inclui chave API, ID do usuário e ID da caixa de entrada.
 - Erros devem ser úteis sem conter token, senha ou string de conexão.
 - O pacote é iniciado pelo atalho instalado/Start Menu.

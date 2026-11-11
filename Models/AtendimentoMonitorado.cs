@@ -15,47 +15,51 @@ public sealed class AtendimentoMonitorado : INotifyPropertyChanged
     public DateTimeOffset CriadoEm { get; set; }
     public DateTimeOffset? UltimaInteracaoMinhaEm { get; set; }
     public DateTimeOffset? UltimaMensagemClienteEm { get; set; }
-    public DateTimeOffset? UltimaInteracaoChatEm { get; set; }
+    public DateTimeOffset? UltimaMensagemPublicaEm { get; set; }
     public DateTimeOffset? AdiadoAte { get; set; }
 
-    /// <summary>Referência para prioridade e alertas: a última interação humana relevante no chat.</summary>
-    public DateTimeOffset ReferenciaInteracao => DataValida(UltimaInteracaoChatEm) ?? CriadoEm;
-    public bool EstaAdiado => string.Equals(Status, "snoozed", StringComparison.OrdinalIgnoreCase)
-        || AdiadoAte is { } adiadoAte && adiadoAte > DateTimeOffset.UtcNow;
-    public string SituacaoText => EstaAdiado
-        ? AdiadoAte is null ? "Adiado" : $"Adiado até {AdiadoAte.Value.LocalDateTime:dd/MM HH:mm}"
-        : "Em aberto";
-
-    private string _tempoSemInteracaoChat = string.Empty;
-    public string TempoSemInteracaoChat
+    /// <summary>Referência para prioridade e alertas: a última mensagem pública da conversa, inclusive bot ou template.</summary>
+    public DateTimeOffset ReferenciaInteracao => DataValida(UltimaMensagemPublicaEm) ?? CriadoEm;
+    public bool EstaAdiado => string.Equals(Status, "snoozed", StringComparison.OrdinalIgnoreCase);
+    public string SituacaoText => Status.ToLowerInvariant() switch
     {
-        get => _tempoSemInteracaoChat;
-        private set => SetField(ref _tempoSemInteracaoChat, value);
+        "snoozed" => AdiadoAte is null ? "Adiada até a próxima resposta" : $"Adiada até {AdiadoAte.Value.LocalDateTime:dd/MM HH:mm}",
+        "open" => "Aberta",
+        "pending" => "Pendente",
+        "resolved" => "Resolvida",
+        _ => "Status desconhecido"
+    };
+
+    private string _tempoSemMensagemPublica = string.Empty;
+    public string TempoSemMensagemPublica
+    {
+        get => _tempoSemMensagemPublica;
+        private set => SetField(ref _tempoSemMensagemPublica, value);
     }
 
-    private string _tempoChatAberto = string.Empty;
-    public string TempoChatAberto
+    private string _tempoDesdeCriacao = string.Empty;
+    public string TempoDesdeCriacao
     {
-        get => _tempoChatAberto;
-        private set => SetField(ref _tempoChatAberto, value);
+        get => _tempoDesdeCriacao;
+        private set => SetField(ref _tempoDesdeCriacao, value);
     }
 
-    public string UltimaInteracaoChatText => DataValida(UltimaInteracaoChatEm) is null
-        ? "Sem interação desde a abertura"
-        : $"Última interação: {UltimaInteracaoChatEm!.Value.LocalDateTime:dd/MM HH:mm}";
+    public string UltimaMensagemPublicaText => DataValida(UltimaMensagemPublicaEm) is null
+        ? "Sem mensagem pública registrada"
+        : $"Última mensagem pública: {UltimaMensagemPublicaEm!.Value.LocalDateTime:dd/MM HH:mm}";
 
     public string UltimaMensagemClienteText => DataValida(UltimaMensagemClienteEm) is null
-        ? "Cliente: sem mensagem registrada"
-        : $"Cliente: {UltimaMensagemClienteEm!.Value.LocalDateTime:dd/MM HH:mm}";
+        ? "Contato: sem mensagem recebida registrada"
+        : $"Contato: {UltimaMensagemClienteEm!.Value.LocalDateTime:dd/MM HH:mm}";
 
-    public string MinhaUltimaAcaoText => DataValida(UltimaInteracaoMinhaEm) is null
-        ? "Você: sem ação registrada"
-        : $"Você: {UltimaInteracaoMinhaEm!.Value.LocalDateTime:dd/MM HH:mm}";
+    public string MinhaUltimaMensagemText => DataValida(UltimaInteracaoMinhaEm) is null
+        ? "Você: sem mensagem enviada registrada"
+        : $"Última mensagem enviada por você: {UltimaInteracaoMinhaEm!.Value.LocalDateTime:dd/MM HH:mm}";
 
     public void AtualizarTempo(DateTimeOffset agora)
     {
-        TempoChatAberto = FormatarDuracao(agora - CriadoEm);
-        TempoSemInteracaoChat = FormatarDuracao(agora - ReferenciaInteracao);
+        TempoDesdeCriacao = FormatarDuracao(agora - CriadoEm);
+        TempoSemMensagemPublica = FormatarDuracao(agora - ReferenciaInteracao);
     }
 
     private static string FormatarDuracao(TimeSpan intervalo) => intervalo.TotalDays >= 1
