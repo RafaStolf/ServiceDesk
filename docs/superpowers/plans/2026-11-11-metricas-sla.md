@@ -33,8 +33,8 @@
 
 ### Task 2: Tela e navegação
 **Files:** Create MetricasPage.cs. Modify MainPage.xaml/MainPage.xaml.cs, README.md, docs/PRD.md.
-**Interfaces:** MetricasPage() recebe OpcoesMetricas(tema, destaque, estilo) via Frame.Navigate; RenderizarResultado(ResultadoMetricas resultado, string contexto) oferece fila, histórico, datas/atalhos, base de tempo, resumo e detalhes.
+**Interfaces:** MetricasPage(Action voltar, OpcoesMetricas opcoes) é criada diretamente e mantém a instância original da fila; RenderizarResultado(ResultadoMetricas resultado, string contexto) oferece fila, histórico, datas/atalhos, base de tempo, resumo e detalhes.
 - [x] Adicionar botão Métricas e navegar preservando a instância da fila; cancelar consultas ao sair e parar o sincronizador da fila enquanto a tela estiver aberta.
 - [x] Renderizar os três indicadores com denominadores, SLA separado, avisos de permissões/limites, lista e diálogo de detalhes com metas/vencimentos/eventos. Histórico filtra eventos por created_at do relatório oficial; fila mostra histórico disponível dos tickets atuais.
 - [x] Teste UIAutomation do aplicativo publicado contra API local sintética verifica médias, detalhes, histórico, cancelamento e retorno preservando o filtro, sem configuração real.
-- [ ] Atualizar documentação, validar diff e compilar/testar no workflow Windows antes da integração e publicação.
+- [x] Atualizar documentação e diff; configurar compilação, teste UI e instalação no workflow Windows. A integração/publicação depende de todos os checks aprovados no commit final.

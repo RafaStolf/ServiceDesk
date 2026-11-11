@@ -2,7 +2,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
 using ServiceDesk.Models;
 using ServiceDesk.Services;
 using System.Net;
@@ -36,8 +35,11 @@ public sealed class MetricasPage : Page
     private bool _carregada;
     private int _colunasResumo = 3;
 
-    public MetricasPage()
+    internal MetricasPage(Action voltarParaFila, OpcoesMetricas opcoes)
     {
+        RequestedTheme = opcoes.Tema;
+        _destaque = opcoes.Destaque;
+        _fila.Style = _historico.Style = opcoes.EstiloFiltro;
         var hoje = PeriodoMetricas.Hoje;
         _inicio.Date = DataCalendario(hoje.AddDays(-6));
         _fim.Date = DataCalendario(hoje);
@@ -51,7 +53,7 @@ public sealed class MetricasPage : Page
         var voltar = new Button { Content = new SymbolIcon(Symbol.Back), VerticalAlignment = VerticalAlignment.Top };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(voltar, "Voltar à fila");
         ToolTipService.SetToolTip(voltar, "Voltar à fila");
-        voltar.Click += (_, _) => { _consulta?.Cancel(); if (Frame.CanGoBack) Frame.GoBack(); };
+        voltar.Click += (_, _) => { _consulta?.Cancel(); voltarParaFila(); };
         cabecalho.Children.Add(voltar);
         var titulo = new StackPanel { Spacing = 4 };
         titulo.Children.Add(new TextBlock { Text = "Métricas e SLA", Style = (Style)Application.Current.Resources["TitleTextBlockStyle"] });
@@ -84,6 +86,7 @@ public sealed class MetricasPage : Page
         var scroll = new ScrollViewer { Content = _conteudo, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         Grid.SetRow(scroll, 3); raiz.Children.Add(scroll);
         Content = raiz;
+        AtualizarModo();
         SizeChanged += (_, e) =>
         {
             var colunas = e.NewSize.Width < 760 ? 1 : 3;
@@ -99,16 +102,6 @@ public sealed class MetricasPage : Page
         Unloaded += (_, _) => { _ativa = false; _consulta?.Cancel(); };
     }
 
-    protected override void OnNavigatedTo(NavigationEventArgs e)
-    {
-        base.OnNavigatedTo(e);
-        if (e.Parameter is OpcoesMetricas opcoes)
-        {
-            RequestedTheme = opcoes.Tema; _destaque = opcoes.Destaque;
-            _fila.Style = _historico.Style = opcoes.EstiloFiltro;
-        }
-        AtualizarModo();
-    }
     private static DateTimeOffset DataCalendario(DateOnly data) => new(data.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero);
     private void AtualizarModo()
     {

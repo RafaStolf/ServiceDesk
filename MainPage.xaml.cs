@@ -59,8 +59,19 @@ public sealed partial class MainPage : Page
     }
     private void MetricasButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!_sincronizando)
-            Frame.Navigate(typeof(MetricasPage), new OpcoesMetricas(RequestedTheme, CorDestaque(), (Style)Resources["FiltroStyle"]));
+        if (_sincronizando) return;
+        try
+        {
+            var quadro = Frame;
+            quadro.Content = new MetricasPage(() => quadro.Content = this,
+                new OpcoesMetricas(RequestedTheme, CorDestaque(), (Style)Resources["FiltroStyle"]));
+        }
+        catch (Exception ex)
+        {
+            if (Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1")
+                File.AppendAllText(Path.Combine(Path.GetTempPath(), "ServiceDesk-inicializacao.log"), ex + Environment.NewLine);
+            MostrarAviso("Não foi possível abrir as métricas", ex.Message, InfoBarSeverity.Error);
+        }
     }
     private async void AtualizarButton_Click(object sender, RoutedEventArgs e) => await AtualizarAsync();
 

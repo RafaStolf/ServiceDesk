@@ -134,6 +134,7 @@ try {
 } catch {
     Write-Host $_.ScriptStackTrace
     Write-Host $_.Exception.ToString()
+    Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-4)} -ErrorAction SilentlyContinue | Select-Object -First 5 Message | Format-List | Out-String | Write-Host
     Get-Content (Join-Path $env:TEMP 'ServiceDesk-inicializacao.log') -Tail 40 -ErrorAction SilentlyContinue | Write-Host
     throw
 } finally {
