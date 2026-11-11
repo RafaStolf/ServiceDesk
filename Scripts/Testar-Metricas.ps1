@@ -33,7 +33,11 @@ $server = Start-Job -ArgumentList $porta, $root -ScriptBlock {
                 $date = $agora.ToString('O')
                 if ($path -eq '/api/v1/profile') { $json = '{"id":42}' }
                 elseif ($path.EndsWith('/reporting_events')) {
-                    if (Test-Path (Join-Path $root 'atrasar')) { Start-Sleep -Seconds 5 }
+                    if (Test-Path (Join-Path $root 'atrasar')) {
+                        Set-Content (Join-Path $root 'atrasando') '1'
+                        Start-Sleep -Seconds 5
+                        Remove-Item (Join-Path $root 'atrasando') -Force -ErrorAction SilentlyContinue
+                    }
                     $json = @(
                         @{name='first_response'; value=60; value_in_business_hours=0; user_id=42; created_at=$date},
                         @{name='reply_time'; value=120; value_in_business_hours=60; user_id=42; created_at=$date},
@@ -72,7 +76,7 @@ function Aguardar([string]$nome) {
     for ($i=0; $i -lt 100; $i++) {
         if ($app.HasExited) { throw "Aplicativo encerrou durante teste: $nome" }
         $elemento = Encontrar $nome
-        if ($null -ne $elemento -and $elemento.Current.IsEnabled) { return $elemento }
+        if ($null -ne $elemento -and $elemento.Current.IsEnabled -and !$elemento.Current.IsOffscreen) { return $elemento }
         Start-Sleep -Milliseconds 100
     }
     throw "Controle não encontrado ou desabilitado: $nome"
@@ -116,6 +120,7 @@ try {
     Clicar 'Histórico'
     Aguardar 'Atualizar' | Out-Null
     Clicar 'Hoje'
+    Aguardar 'Atualizar' | Out-Null
     Aguardar '1min 0s' | Out-Null
     # Exercita cancelamento de uma consulta real ao servidor sintético.
     Set-Content (Join-Path $root 'atrasar') '1'
@@ -123,18 +128,27 @@ try {
     Clicar 'Cancelar consulta'
     Aguardar 'Consulta cancelada. Os resultados anteriores, se houver, permanecem identificados abaixo.' | Out-Null
     Remove-Item (Join-Path $root 'atrasar') -Force
+    for ($i=0; $i -lt 60 -and (Test-Path (Join-Path $root 'atrasando')); $i++) { Start-Sleep -Milliseconds 100 }
     Clicar 'Voltar à fila'
     $todos = Aguardar 'Todos (1)'
     $toggle = $todos.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
     if ($toggle.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) { throw 'Retorno perdeu o filtro selecionado da fila.' }
     Clicar 'Métricas'
+    Aguardar 'Métricas e SLA' | Out-Null
+    Aguardar 'Atualizar' | Out-Null
     Aguardar '1min 0s' | Out-Null
     Clicar 'Voltar à fila'
     Write-Host 'OK: navegação fila/métricas/fila, histórico e Hoje, médias oficiais, detalhes de SLA, cancelamento e filtro preservado; somente API sintética local.'
 } catch {
     Write-Host $_.ScriptStackTrace
     Write-Host $_.Exception.ToString()
-    Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-4)} -ErrorAction SilentlyContinue | Select-Object -First 5 Message | Format-List | Out-String | Write-Host
+    if ($null -ne $app -and !$app.HasExited -and $null -ne $script:janela) {
+        $elementos = $script:janela.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+        for ($i=0; $i -lt [Math]::Min(80,$elementos.Count); $i++) {
+            try { Write-Host ('UI: ' + $elementos[$i].Current.Name) } catch { }
+        }
+    }
+    Get-WinEvent -FilterHashtable @{LogName='Application';ProviderName=@('.NET Runtime','Application Error'); StartTime=(Get-Date).AddMinutes(-4)} -ErrorAction SilentlyContinue | Select-Object -First 5 Message | Format-List | Out-String | Write-Host
     Get-Content (Join-Path $env:TEMP 'ServiceDesk-inicializacao.log') -Tail 40 -ErrorAction SilentlyContinue | Write-Host
     throw
 } finally {

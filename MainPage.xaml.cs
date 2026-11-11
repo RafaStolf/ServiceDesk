@@ -30,6 +30,7 @@ public sealed partial class MainPage : Page
     private int _limiteNotificacaoMinutos;
     private int _colunas = 1;
     private string _filtroStatus = "Em aberto";
+    private Frame? _quadroMetricas;
 
     public MainPage()
     {
@@ -62,7 +63,7 @@ public sealed partial class MainPage : Page
         if (_sincronizando) return;
         try
         {
-            var quadro = Frame;
+            var quadro = _quadroMetricas ??= Frame;
             quadro.Content = new MetricasPage(() => quadro.Content = this,
                 new OpcoesMetricas(RequestedTheme, CorDestaque(), (Style)Resources["FiltroStyle"]));
         }
