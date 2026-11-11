@@ -100,7 +100,7 @@ A integração continua somente GET. Nenhuma meta contratual, pausa ou calendár
 
 ## Assinatura de código
 
-Consulte [docs/ASSINATURA.md](docs/ASSINATURA.md) para o certificado próprio, sua guarda e a ordem de assinatura no Windows. O certificado foi gerado; o workflow ainda não o utiliza.
+Consulte [docs/ASSINATURA.md](docs/ASSINATURA.md) para o certificado próprio, sua guarda e a ordem de assinatura no Windows. O workflow está preparado para assinatura automática; a publicação exige o cadastro dos secrets descritos nessa documentação. PRs validam o processo com certificado descartável de teste.
 
 ## E-mail nos cards
 

@@ -13,6 +13,9 @@ function Executar([string]$Exe, [string]$Argumentos) {
 try {
     Executar $InstallerPath "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=`"$target`" /LOG=`"$root/install.log`""
     if (!(Test-Path "$target/ServiceDesk.exe") -or !(Test-Path "$target/unins000.exe")) { throw 'Instalação incompleta.' }
+    if ($env:SIGNING_THUMBPRINT) {
+        & "$PSScriptRoot/Assinar-ArquivosCI.ps1" -SomenteVerificar -Arquivos @("$target/ServiceDesk.exe", "$target/ServiceDesk.dll", "$target/unins000.exe")
+    }
     $atalho = Join-Path ([Environment]::GetFolderPath('Programs')) 'ServiceDesk.lnk'
     if (!(Test-Path $atalho)) { throw 'Atalho do menu Iniciar não foi criado.' }
     $shell = New-Object -ComObject Shell.Application
