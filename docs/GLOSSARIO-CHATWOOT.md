@@ -19,13 +19,13 @@ Referência: Chatwoot oficial v4.19.1. A versão usada pela equipe ainda será c
 | `status=resolved` | Resolvida |
 | `created_at` da conversa | Criação; não mede quanto tempo a conversa permaneceu aberta após reaberturas |
 | `last_activity_at` | Última atividade; pode incluir evento e não substitui a data da última mensagem pública |
-| ID do atendimento | O `display_id` da conversa, retornado como `id` pelo endpoint; não existe um campo de ticket externo no produto |
+| ID do ticket | O `display_id` da conversa, retornado como `id` pelo endpoint; não existe um campo de ticket externo no produto |
 
 Os campos `sender_type`/`sender_id` no nível raiz pertencem a outros formatos, como atributos de eventos/modelos. O endpoint GET de mensagens usa `sender.type`/`sender.id`. A implementação prioriza o formato do endpoint e mantém compatibilidade com os campos antigos quando o remetente aninhado não está disponível.
 
 O card exibe apenas o tempo da última interação identificada do agente atribuído, junto à identificação, empresa e situação. Não exibe texto das mensagens ou nome do agente. A integração lê `meta.assignee.id`; o `chatwoot.user-id` legado não substitui uma atribuição ausente. Mensagens privadas e eventos continuam excluídos. A criação da conversa e `last_activity_at` não são usados como duração de uma interação desconhecida.
 
-Ações do card ficam no menu **…**: Copiar texto, Exportar chat e Abrir no Chatwoot. Não há campo de ticket externo; o ID identifica o próprio atendimento. Tema, cor e preferências de notificações são ajustados apenas nas configurações. O ícone original da Centrium permanece. As notificações não contêm ação para abrir o Chatwoot.
+Ações do card ficam no menu **…**: Copiar texto, Exportar chat e Abrir no Chatwoot. Não há campo de ticket externo; o ID identifica o próprio ticket. Tema, cor e preferências de notificações são ajustados apenas nas configurações. O ícone original da Centrium permanece. As notificações não contêm ação para abrir o Chatwoot.
 
 ## Indicadores e regras ainda a confirmar
 
@@ -78,4 +78,6 @@ CVSS (Common Vulnerability Scoring System) é uma escala técnica de severidade 
 
 ## Situação atual da interface
 
-Os cards ocupam a largura disponível em uma a quatro colunas e a busca ocupa a faixa inteira. A sincronização bem-sucedida aparece em uma linha discreta; erros indicam que a fila anterior pode estar desatualizada. O relógio atualiza sem reconstruir os cards a cada trinta segundos. Os alertas usam apenas uma última interação conhecida do agente e são emitidos uma vez por referência; não são emitidos a partir de uma data de criação presumida.
+Os cards ocupam a largura disponível em uma a quatro colunas e não há campo de busca. A sincronização bem-sucedida aparece em uma linha discreta; erros indicam que a fila anterior pode estar desatualizada. O relógio atualiza sem reconstruir os cards a cada trinta segundos. Os alertas usam apenas uma última interação conhecida do agente e são emitidos uma vez por referência; não são emitidos a partir de uma data de criação presumida.
+
+O campo Empresa prioriza `meta.sender.additional_attributes.company_name`, usado pelo contato padrão do Chatwoot. Campos personalizados `empresa` e `company` permanecem como alternativas. A interface utiliza Ticket para identificar a conversa. O filtro Em aberto dispensa a situação repetida no card; Todos mantém a distinção e adiados mantêm a informação do adiamento. As seções das configurações ficam em posições fixas, sem Pivot.

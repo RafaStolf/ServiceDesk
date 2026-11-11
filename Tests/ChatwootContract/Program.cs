@@ -65,6 +65,12 @@ using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN
     var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
     Verificar(conversa.UltimaInteracaoAgenteEm is null, "ausência do agente atribuído não é substituída pelo usuário da configuração");
 }
+foreach (var (padrao, esperado) in new[] { ("Empresa oficial", "Empresa oficial"), ("", "Empresa de teste"), ("   ", "Empresa de teste") })
+{
+    using var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada(mensagens, false, empresaPadrao: padrao)));
+    var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
+    Verificar(conversa.Empresa == esperado, "campo padrão additional_attributes.company_name prevalece; vazio mantém alternativa personalizada");
+}
 var preferenciasDir = Path.Combine(Path.GetTempPath(), "ServiceDesk-Interface-Test-" + Guid.NewGuid().ToString("N"));
 try
 {
@@ -81,7 +87,7 @@ Verificar(!aberta.EstaAdiado && aberta.SituacaoText == "Aberta", "status oficial
 Verificar(adiada.EstaAdiado && adiada.SituacaoText == "Adiada até a próxima resposta", "snoozed sem data representa adiamento até resposta");
 Console.WriteLine("Contrato Chatwoot validado com dados sintéticos; nenhum servidor real foi consultado.");
 
-sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = false, long? agenteId = 42) : HttpMessageHandler
+sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = false, long? agenteId = 42, string? empresaPadrao = null) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -97,7 +103,7 @@ sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = fal
         }
         else if (caminho.Contains("status=open") && caminho.Contains("page=1&"))
         {
-            object conversa = new { id = 19622, meta = new { sender = new { name = "Contato de teste", custom_attributes = new { empresa = "Empresa de teste" } }, assignee_type = "User", assignee = agenteId is { } idAgente ? (object)new { id = idAgente } : null }, status = "open", created_at = 1794330000,
+            object conversa = new { id = 19622, meta = new { sender = new { name = "Contato de teste", additional_attributes = new { company_name = empresaPadrao }, custom_attributes = new { empresa = "Empresa de teste" } }, assignee_type = "User", assignee = agenteId is { } idAgente ? (object)new { id = idAgente } : null }, status = "open", created_at = 1794330000,
                 last_activity_at = 1794399999, last_non_activity_message = vazia ? (object?)null : mensagens.First(x => x.GetProperty("id").GetInt32() == 4) };
             json = JsonSerializer.Serialize(new { data = new { payload = new[] { conversa } } });
         }

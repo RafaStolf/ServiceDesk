@@ -4,6 +4,32 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Loaded="Page_Loaded">
     <Page.Resources>
+        <Style x:Key="FiltroStyle" TargetType="ToggleButton">
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="UseSystemFocusVisuals" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="FiltroRaiz" Background="{TemplateBinding Background}" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="PointerOver" />
+                                    <VisualState x:Name="Pressed" />
+                                    <VisualState x:Name="Checked" />
+                                    <VisualState x:Name="CheckedPointerOver" />
+                                    <VisualState x:Name="CheckedPressed" />
+                                    <VisualState x:Name="Disabled"><VisualState.Setters><Setter Target="FiltroRaiz.Opacity" Value="0.4" /></VisualState.Setters></VisualState>
+                                    <VisualState x:Name="CheckedDisabled"><VisualState.Setters><Setter Target="FiltroRaiz.Opacity" Value="0.4" /></VisualState.Setters></VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <ContentPresenter Content="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="AtendimentoCardStyle" TargetType="Border">
             <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
             <Setter Property="CornerRadius" Value="10" />
@@ -32,11 +58,10 @@
             </CommandBar>
         </Grid>
         <StackPanel Grid.Row="1" Spacing="10">
-            <TextBox x:Name="BuscaTextBox" HorizontalAlignment="Stretch" PlaceholderText="Buscar por contato, empresa ou ID" TextChanged="BuscaTextBox_TextChanged" AutomationProperties.Name="Buscar atendimentos" />
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <ToggleButton x:Name="AbertosFiltro" Content="Em aberto (0)" Tag="Em aberto" Click="Filtro_Click" IsChecked="True" />
-                <ToggleButton x:Name="AdiadosFiltro" Content="Adiados (0)" Tag="Adiado" Click="Filtro_Click" />
-                <ToggleButton x:Name="TodosFiltro" Content="Todos (0)" Tag="Todos" Click="Filtro_Click" />
+                <ToggleButton Style="{StaticResource FiltroStyle}" x:Name="AbertosFiltro" Content="Em aberto (0)" Tag="Em aberto" Click="Filtro_Click" IsChecked="True" />
+                <ToggleButton Style="{StaticResource FiltroStyle}" x:Name="AdiadosFiltro" Content="Adiados (0)" Tag="Adiado" Click="Filtro_Click" />
+                <ToggleButton Style="{StaticResource FiltroStyle}" x:Name="TodosFiltro" Content="Todos (0)" Tag="Todos" Click="Filtro_Click" />
             </StackPanel>
         </StackPanel>
         <InfoBar x:Name="StatusInfo" Grid.Row="2" IsOpen="False" IsClosable="True" />

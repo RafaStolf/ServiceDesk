@@ -4,9 +4,9 @@
 
 ## Contexto e objetivo
 
-O analista trabalha a fila atribuída a ele no Chatwoot e precisa priorizar conversas sem mensagem pública. A aplicação deve apresentar, sem executar operações no Chatwoot, o identificação, empresa, ID e o tempo desde a última interação identificada do agente atribuído e se a conversa está adiada.
+O analista trabalha a fila atribuída a ele no Chatwoot e precisa priorizar conversas sem mensagem pública. A aplicação deve apresentar, sem executar operações no Chatwoot, a identificação, empresa, ID e o tempo desde a última interação identificada do agente atribuído e se a conversa está adiada.
 
-O sucesso é o analista conseguir, ao abrir o ServiceDesk, identificar a fila aberta e os adiados, pesquisar uma conversa e abrir a conversa correspondente no Chatwoot. A atualização é manual ou automática em intervalo configurável.
+O sucesso é o analista conseguir, ao abrir o ServiceDesk, identificar a fila aberta e os adiados, abrir a conversa correspondente no Chatwoot. A atualização é manual ou automática em intervalo configurável.
 
 ## Escopo confirmado
 
@@ -15,7 +15,7 @@ O sucesso é o analista conseguir, ao abrir o ServiceDesk, identificar a fila ab
 | RF-01 | Consultar em modo de leitura as conversas abertas e adiadas atribuídas ao usuário da chave API. | A lista não altera conversa alguma. |
 | RF-02 | Usar mensagens públicas enviadas pelo agente atribuído para a última interação exibida. | Notas, eventos, bots e mensagens de outro agente não substituem a interação do agente atribuído. |
 | RF-03 | Mostrar se está adiada e separar Em aberto, Adiados e Todos. | Um adiado não aparece em Em aberto e é encontrado nas demais visões. |
-| RF-04 | Permitir busca por telefone, empresa, contato ou ID. | O termo restringe a lista sem gravação no Chatwoot. |
+| RF-04 | Organizar a fila pelos filtros Em aberto, Adiados e Todos, sem campo de busca. | A seleção mantém a cor de destaque escolhida e não altera dados no Chatwoot. |
 | RF-05 | Configurar atualização automática de 1 a 120 minutos e alertas locais por tempo desde a última interação identificada do agente. | As escolhas persistem após reabrir e cada conversa alerta uma vez por referência de interação conhecida. |
 
 ## Fora de escopo
