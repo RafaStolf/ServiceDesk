@@ -30,7 +30,7 @@ if ('1.3.6.1.5.5.7.3.3' -notin $usos) {
 $publico = Join-Path $env:GITHUB_WORKSPACE 'ServiceDesk-Publicador.cer'
 Export-Certificate -Cert $cert -FilePath $publico | Out-Null
 # Confianca somente no runner descartavel, para validar o certificado proprio.
-Import-Certificate -FilePath $publico -CertStoreLocation Cert:\CurrentUser\Root | Out-Null
+Import-Certificate -FilePath $publico -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
 "SIGNING_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
 $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1
 if (!$signtool) { throw 'SignTool do Windows SDK nao encontrado.' }

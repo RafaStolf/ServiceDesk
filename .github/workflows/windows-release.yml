@@ -127,6 +127,6 @@ jobs:
         run: |
           if ($env:SIGNING_THUMBPRINT) {
             Remove-Item "Cert:\CurrentUser\My\$env:SIGNING_THUMBPRINT" -DeleteKey -Force -ErrorAction SilentlyContinue
-            Remove-Item "Cert:\CurrentUser\Root\$env:SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
+            Remove-Item "Cert:\LocalMachine\Root\$env:SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
           }
           Remove-Item "$env:RUNNER_TEMP/servicedesk-signing" -Recurse -Force -ErrorAction SilentlyContinue
