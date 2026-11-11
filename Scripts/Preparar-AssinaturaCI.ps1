@@ -21,7 +21,10 @@ if ($Teste) {
 if (@($cert).Count -ne 1 -or !$cert.HasPrivateKey -or $cert.NotAfter -le (Get-Date) -or $cert.NotBefore -gt (Get-Date)) {
     throw 'Certificado de assinatura ausente, ambiguo ou fora da validade.'
 }
-if ('1.3.6.1.5.5.7.3.3' -notin @($cert.EnhancedKeyUsageList | ForEach-Object { $_.ObjectId.Value })) {
+$usos = @($cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.37' } | ForEach-Object {
+    $_.EnhancedKeyUsages | ForEach-Object { $_.Value }
+})
+if ('1.3.6.1.5.5.7.3.3' -notin $usos) {
     throw 'O certificado nao autoriza assinatura de codigo.'
 }
 $publico = Join-Path $env:GITHUB_WORKSPACE 'ServiceDesk-Publicador.cer'
