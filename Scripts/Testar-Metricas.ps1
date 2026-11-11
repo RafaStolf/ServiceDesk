@@ -1,7 +1,8 @@
-param([Parameter(Mandatory=$true)][string]$PackagePath)
+﻿param([Parameter(Mandatory=$true)][string]$PackagePath)
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Este teste usa um perfil temporário de configuração e deve executar apenas no runner isolado do GitHub Actions.' }
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+Write-Host ('UIAutomation apartment: ' + [Threading.Thread]::CurrentThread.GetApartmentState())
 $root = Join-Path $env:TEMP ('ServiceDesk-Metricas-Test-' + [guid]::NewGuid().ToString('N'))
 $configDir = Join-Path $env:USERPROFILE '.servicedesk'
 $config = Join-Path $configDir 'application.properties'
@@ -18,7 +19,10 @@ $server = Start-Job -ArgumentList $porta, $root -ScriptBlock {
     Set-Content (Join-Path $root 'pronto') 'ok'
     try {
         while ($http.IsListening) {
-            $context = $http.GetContext()
+            $espera = $http.GetContextAsync()
+            while (!$espera.IsCompleted -and !(Test-Path (Join-Path $root 'parar'))) { Start-Sleep -Milliseconds 100 }
+            if (Test-Path (Join-Path $root 'parar')) { break }
+            $context = $espera.GetAwaiter().GetResult()
             try {
                 if ($context.Request.HttpMethod -ne 'GET' -or $context.Request.Headers['api_access_token'] -ne 'TOKEN-FICTICIO-UI') {
                     $context.Response.StatusCode = 403; $context.Response.Close(); continue
@@ -118,10 +122,13 @@ try {
     Write-Host 'OK: navegação fila/métricas/fila, histórico e Hoje, médias oficiais, detalhes de SLA, cancelamento e filtro preservado; somente API sintética local.'
 } catch {
     Write-Host $_.ScriptStackTrace
+    Write-Host $_.Exception.ToString()
     Get-Content (Join-Path $env:TEMP 'ServiceDesk-inicializacao.log') -Tail 40 -ErrorAction SilentlyContinue | Write-Host
     throw
 } finally {
     if ($null -ne $app -and !$app.HasExited) { Stop-Process -Id $app.Id -Force }
+    Set-Content (Join-Path $root 'parar') '1'
+    Wait-Job $server -Timeout 10 | Out-Null
     Stop-Job $server -ErrorAction SilentlyContinue
     Remove-Job $server -Force -ErrorAction SilentlyContinue
     if ($existia) { [IO.File]::WriteAllBytes($config, $original) } else { Remove-Item $config -Force -ErrorAction SilentlyContinue }
