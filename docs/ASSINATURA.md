@@ -37,5 +37,43 @@ Não importar a chave privada. Essa confiança local não elimina a avaliação
 independente de reputação do SmartScreen. O desinstalador gerado pelo Inno Setup
 precisa de configuração própria de SignTool para também receber assinatura.
 
-O workflow atual ainda não recebe essa chave e continua gerando releases sem assinatura.
-Automatizar a assinatura exige configurar o PFX e sua senha em secrets privados do CI.
+## Publicação automática no GitHub Actions
+
+O workflow assina `ServiceDesk.exe` e `ServiceDesk.dll` antes do ZIP e do instalador.
+O Inno Setup assina o instalador e o desinstalador com SignTool e carimbo de tempo
+RFC 3161/SHA-256. A instalação de teste verifica as assinaturas do aplicativo e do
+desinstalador. Hashes são gerados depois das assinaturas. A release inclui apenas
+`ServiceDesk-Publicador.cer`; nenhuma chave privada ou senha acompanha os downloads.
+
+PRs usam certificado descartável de teste, sem acesso ao certificado do publicador,
+e não publicam releases. Publicações exigem os dois secrets abaixo e falham se
+estiverem ausentes; não há fallback silencioso para arquivos sem assinatura:
+
+- `SERVICEDESK_CERTIFICATE_PFX_BASE64`
+- `SERVICEDESK_CERTIFICATE_PASSWORD`
+
+No seu Windows, instale o GitHub CLI e autentique uma conta com permissão para
+administrar os secrets do repositório:
+
+```powershell
+winget install --id GitHub.cli
+# Reabra o PowerShell se o comando gh ainda não for encontrado.
+gh auth login
+```
+
+Salve `Scripts/Configurar-SecretsAssinatura.ps1` na pasta local dos certificados e execute:
+
+```powershell
+cd "D:\Documentos\Arquivos\Centrium\Projetos\Certificados\ServiceDesk-Assinatura"
+.\Configurar-SecretsAssinatura.ps1
+```
+
+O script lê `ServiceDesk.pfx` e `password.txt` e envia os valores pela entrada padrão
+do GitHub CLI, sem colocá-los em argumentos ou mostrar seus conteúdos. Confira
+apenas os nomes em Settings → Secrets and variables → Actions. Não cole valores
+em comentários, issues, mensagens ou arquivos versionados.
+
+Os certificados privados são importados apenas no runner Windows descartável;
+o PFX temporário é removido após a importação, e o certificado é removido ao final.
+O runner confia no certificado próprio apenas para verificar as assinaturas durante
+a compilação. Isso não configura confiança nos computadores dos usuários.

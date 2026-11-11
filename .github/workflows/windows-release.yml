@@ -33,6 +33,17 @@ jobs:
         shell: powershell
         run: ./Scripts/Testar-LeituraCampos.ps1
       - uses: microsoft/setup-msbuild@v2
+      - name: Preparar assinatura de teste para PR
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: ./Scripts/Preparar-AssinaturaCI.ps1 -Teste
+      - name: Preparar certificado do publicador
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        env:
+          SERVICEDESK_CERTIFICATE_PFX_BASE64: ${{ secrets.SERVICEDESK_CERTIFICATE_PFX_BASE64 }}
+          SERVICEDESK_CERTIFICATE_PASSWORD: ${{ secrets.SERVICEDESK_CERTIFICATE_PASSWORD }}
+        run: ./Scripts/Preparar-AssinaturaCI.ps1
       - name: Compilar aplicativo independente
         timeout-minutes: 10
         shell: pwsh
@@ -52,7 +63,7 @@ jobs:
           Feche a versão antiga antes de abrir a nova. Use o novo executável ou crie um atalho para ele.
           A configuração em %USERPROFILE%\.servicedesk será preservada.
           A versão portátil exibe alertas dentro do aplicativo; notificações do Windows podem não estar disponíveis.
-          Use Configurações > Versão para verificar e instalar novas versões.
+          Use Configurações > Sobre para verificar e instalar novas versões.
           "@ | Set-Content publish/LEIA-ME.txt -Encoding utf8
           $env:SERVICEDESK_DIAGNOSTICO = "1"
           $process = Start-Process -FilePath "$env:GITHUB_WORKSPACE\publish\ServiceDesk.exe" -WorkingDirectory "$env:GITHUB_WORKSPACE\publish" -PassThru
@@ -68,6 +79,7 @@ jobs:
           & ./Scripts/Testar-SegundoPlano.ps1 -PackagePath "$env:GITHUB_WORKSPACE/publish"
           & ./Scripts/Testar-Atualizador.ps1 -PackagePath "$env:GITHUB_WORKSPACE/publish"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./Scripts/Assinar-ArquivosCI.ps1 -Arquivos @('publish/ServiceDesk.exe', 'publish/ServiceDesk.dll')
           Compress-Archive -Path publish/* -DestinationPath ServiceDesk-win-x64.zip
           Get-FileHash ServiceDesk-win-x64.zip -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  ServiceDesk-win-x64.zip" } | Set-Content SHA256SUMS.txt
           "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
@@ -76,9 +88,11 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (!(Test-Path $iscc)) { throw "Inno Setup 6 não encontrado no runner." }
-          & $iscc "/DAppVersion=$env:RELEASE_VERSION" "/DPublishDir=$env:GITHUB_WORKSPACE\publish" Installer/ServiceDesk.iss
+          $assinador = '"' + $env:SIGNTOOL_PATH + '" sign /s My /sha1 ' + $env:SIGNING_THUMBPRINT + ' /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $f'
+          & $iscc "/DAppVersion=$env:RELEASE_VERSION" "/DPublishDir=$env:GITHUB_WORKSPACE\publish" '/DSignedBuild' "/SServiceDeskSign=$assinador" Installer/ServiceDesk.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item installer-output/ServiceDesk-Setup-win-x64.exe .
+          & ./Scripts/Assinar-ArquivosCI.ps1 -SomenteVerificar -Arquivos @('ServiceDesk-Setup-win-x64.exe')
           Get-FileHash ServiceDesk-Setup-win-x64.exe -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  ServiceDesk-Setup-win-x64.exe" } | Add-Content SHA256SUMS.txt
       - name: Testar instalação e desinstalação
         shell: pwsh
@@ -90,8 +104,9 @@ jobs:
             ServiceDesk-win-x64.zip
             ServiceDesk-Setup-win-x64.exe
             SHA256SUMS.txt
+            ServiceDesk-Publicador.cer
       - name: Disponibilizar download
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -102,7 +117,16 @@ jobs:
           Inclui exportação do histórico com imagens, vídeos e áudios originais, Configurações com instalação de atualizações, execução em segundo plano e início com Windows.
           Áudio e vídeo não são transcritos ou convertidos automaticamente.
           Configurações existentes no perfil do Windows são preservadas. Notificações do Windows podem não estar disponíveis na versão portátil; os alertas dentro do app permanecem.
-          Compilado pelo GitHub Actions; interface e downloads de anexos reais ainda precisam de validação de uso.
+          Aplicativo, instalador e desinstalador assinados por Rafael Stolf Silva com certificado próprio. O certificado público acompanha esta release; a confiança local não elimina possíveis avisos do SmartScreen.
           "@ | Set-Content release-notes.txt -Encoding utf8
-          gh release create "v$env:RELEASE_VERSION" ServiceDesk-win-x64.zip ServiceDesk-Setup-win-x64.exe SHA256SUMS.txt --title "ServiceDesk $env:RELEASE_VERSION" --notes-file release-notes.txt --target "$env:GITHUB_SHA"
+          gh release create "v$env:RELEASE_VERSION" ServiceDesk-win-x64.zip ServiceDesk-Setup-win-x64.exe SHA256SUMS.txt ServiceDesk-Publicador.cer --title "ServiceDesk $env:RELEASE_VERSION" --notes-file release-notes.txt --target "$env:GITHUB_SHA"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Remover certificado privado do runner
+        if: always()
+        shell: pwsh
+        run: |
+          if ($env:SIGNING_THUMBPRINT) {
+            Remove-Item "Cert:\CurrentUser\My\$env:SIGNING_THUMBPRINT" -DeleteKey -Force -ErrorAction SilentlyContinue
+            Remove-Item "Cert:\CurrentUser\Root\$env:SIGNING_THUMBPRINT" -Force -ErrorAction SilentlyContinue
+          }
+          Remove-Item "$env:RUNNER_TEMP/servicedesk-signing" -Recurse -Force -ErrorAction SilentlyContinue

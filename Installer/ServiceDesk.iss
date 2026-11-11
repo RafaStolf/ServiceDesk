@@ -30,6 +30,10 @@ DisableProgramGroupPage=yes
 AppMutex=Local\ServiceDesk
 CloseApplications=yes
 RestartApplications=no
+#ifdef SignedBuild
+SignTool=ServiceDeskSign
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
