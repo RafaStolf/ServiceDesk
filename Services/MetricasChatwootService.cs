@@ -123,7 +123,7 @@ public sealed class MetricasChatwootService : IDisposable
                 }
                 catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized) { throw; }
                 catch (Exception ex) when (ex is HttpRequestException or JsonException || ex is OperationCanceledException && !token.IsCancellationRequested)
-                { aviso = "Não foi possível obter os eventos deste ticket."; avisos.Add("Alguns tickets estão sem eventos; as médias incluem somente registros disponíveis."); parcial = true; }
+                { falhasEventosConsecutivas = 0; aviso = "Não foi possível obter os eventos deste ticket."; avisos.Add("Alguns tickets estão sem eventos; as médias incluem somente registros disponíveis."); parcial = true; }
             }
             var contato = Objeto(Objeto(conversa, "meta"), "sender");
             var empresa = Texto(Objeto(contato, "additional_attributes"), "company_name")

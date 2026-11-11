@@ -62,7 +62,8 @@ jobs:
             throw "ServiceDesk encerrou ao iniciar (código $($process.ExitCode))."
           }
           Stop-Process -Id $process.Id
-          & ./Scripts/Testar-Metricas.ps1 -PackagePath "$env:GITHUB_WORKSPACE/publish"
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./Scripts/Testar-Metricas.ps1 -PackagePath "$env:GITHUB_WORKSPACE/publish"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & ./Scripts/Testar-SegundoPlano.ps1 -PackagePath "$env:GITHUB_WORKSPACE/publish"
           & ./Scripts/Testar-Atualizador.ps1 -PackagePath "$env:GITHUB_WORKSPACE/publish"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

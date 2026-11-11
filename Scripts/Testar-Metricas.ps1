@@ -74,6 +74,7 @@ function Aguardar([string]$nome) {
     throw "Controle não encontrado ou desabilitado: $nome"
 }
 function Clicar([string]$nome) {
+    Write-Host "Acionando: $nome"
     $elemento = Aguardar $nome
     $padrao = $null
     if ($elemento.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$padrao)) { $padrao.Invoke() }
@@ -115,6 +116,10 @@ try {
     Aguardar '1min 0s' | Out-Null
     Clicar 'Voltar à fila'
     Write-Host 'OK: navegação fila/métricas/fila, histórico e Hoje, médias oficiais, detalhes de SLA, cancelamento e filtro preservado; somente API sintética local.'
+} catch {
+    Write-Host $_.ScriptStackTrace
+    Get-Content (Join-Path $env:TEMP 'ServiceDesk-inicializacao.log') -Tail 40 -ErrorAction SilentlyContinue | Write-Host
+    throw
 } finally {
     if ($null -ne $app -and !$app.HasExited) { Stop-Process -Id $app.Id -Force }
     Stop-Job $server -ErrorAction SilentlyContinue

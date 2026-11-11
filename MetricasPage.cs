@@ -129,12 +129,17 @@ public sealed class MetricasPage : Page
         _aviso.IsOpen = false;
         try
         {
-            if (_inicio.Date is not { } inicioSelecionado || _fim.Date is not { } fimSelecionado)
-                throw new ArgumentException("Informe as datas de início e fim.");
-            var inicio = DateOnly.FromDateTime(inicioSelecionado.DateTime);
-            var fim = DateOnly.FromDateTime(fimSelecionado.DateTime);
+            var inicio = PeriodoMetricas.Hoje;
+            var fim = inicio;
+            if (_estaNoHistorico)
+            {
+                if (_inicio.Date is not { } inicioSelecionado || _fim.Date is not { } fimSelecionado)
+                    throw new ArgumentException("Informe as datas de início e fim.");
+                inicio = DateOnly.FromDateTime(inicioSelecionado.DateTime);
+                fim = DateOnly.FromDateTime(fimSelecionado.DateTime);
+            }
             var contexto = _estaNoHistorico ? $"Histórico · {inicio:dd/MM/yyyy} a {fim:dd/MM/yyyy} · Brasília" : "Fila atual · abertos e adiados · eventos disponíveis desses tickets";
-            var progresso = new Progress<string>(texto => { if (_ativa && !cts.IsCancellationRequested) _status.Text = texto; });
+            var progresso = new Progress<string>(texto => { if (_ativa && _consulta == cts && !cts.IsCancellationRequested) _status.Text = texto; });
             using var servico = new MetricasChatwootService(CarregadorConfiguracaoChatwoot.Carregar());
             var resultado = await servico.CarregarAsync(_estaNoHistorico, inicio, fim, progresso, cts.Token);
             if (!_ativa || cts.IsCancellationRequested) return;

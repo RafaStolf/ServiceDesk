@@ -27,14 +27,14 @@
 ### Task 1: Leitura e agregação
 **Files:** Create Models/MetricasTicket.cs; Services/MetricasChatwootService.cs; Tests/ChatwootContract/MetricasTests.cs. Modify Tests/ChatwootContract/Program.cs and csproj.
 **Interfaces:** CarregarAsync(bool historico, DateOnly inicio, DateOnly fim, IProgress<string> progresso, CancellationToken token) returns ResultadoMetricas; ResumoMetricas.Calcular returns métricas com contagens.
-- [ ] Adicionar testes sintéticos de janela de Brasília, duração útil zero, eventos de outro usuário, reabertura, política ausente, 403/404/429, paginação repetida e cancelamento.
-- [ ] Implementar leitura de perfil, lista assignee_type=me e reporting_events por ticket, com no máximo 10 páginas por status e 250 tickets por consulta. Interpretar applied_sla/sla_events, durações em segundos e eventos sem texto de mensagens.
-- [ ] Executar dotnet run --project Tests/ChatwootContract/ChatwootContract.csproj; todos os cenários passam.
+- [x] Adicionar testes sintéticos de janela de Brasília, duração útil zero, eventos de outro usuário, reabertura, política ausente, 403/404/429, paginação repetida e cancelamento.
+- [x] Implementar leitura de perfil, lista assignee_type=me e reporting_events por ticket, com no máximo 10 páginas por status e 250 tickets por consulta. Interpretar applied_sla/sla_events, durações em segundos e eventos sem texto de mensagens.
+- [x] Executar dotnet run --project Tests/ChatwootContract/ChatwootContract.csproj; todos os cenários passam.
 
 ### Task 2: Tela e navegação
 **Files:** Create MetricasPage.cs. Modify MainPage.xaml/MainPage.xaml.cs, README.md, docs/PRD.md.
-**Interfaces:** MetricasPage(Action voltar, ElementTheme tema, Brush destaque) oferece fila, histórico, datas/atalhos, base de tempo, resumo e detalhes.
-- [ ] Adicionar botão Métricas e navegar preservando a instância da fila; cancelar consultas ao sair e parar o sincronizador da fila enquanto a tela estiver aberta.
-- [ ] Renderizar os três indicadores com denominadores, SLA separado, avisos de permissões/limites, lista e diálogo de detalhes com metas/vencimentos/eventos. Histórico filtra eventos por created_at do relatório oficial; fila mostra histórico disponível dos tickets atuais.
-- [ ] Diagnóstico de inicialização renderiza um resultado sintético na tela de métricas para verificar controles WinUI sem configuração real.
+**Interfaces:** MetricasPage() recebe OpcoesMetricas(tema, destaque, estilo) via Frame.Navigate; RenderizarResultado(ResultadoMetricas resultado, string contexto) oferece fila, histórico, datas/atalhos, base de tempo, resumo e detalhes.
+- [x] Adicionar botão Métricas e navegar preservando a instância da fila; cancelar consultas ao sair e parar o sincronizador da fila enquanto a tela estiver aberta.
+- [x] Renderizar os três indicadores com denominadores, SLA separado, avisos de permissões/limites, lista e diálogo de detalhes com metas/vencimentos/eventos. Histórico filtra eventos por created_at do relatório oficial; fila mostra histórico disponível dos tickets atuais.
+- [x] Teste UIAutomation do aplicativo publicado contra API local sintética verifica médias, detalhes, histórico, cancelamento e retorno preservando o filtro, sem configuração real.
 - [ ] Atualizar documentação, validar diff e compilar/testar no workflow Windows antes da integração e publicação.

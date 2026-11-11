@@ -73,6 +73,14 @@ internal static class MetricasTests
             var resultado = await api.CarregarAsync(false, new(2026,11,9), new(2026,11,9), null, CancellationToken.None);
             Check(resultado.Parcial && resultado.Tickets.Count == 250, "limite de 250 tickets é explícito e respeitado");
         }
+        using (var api = new MetricasChatwootService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, null, 1), new HttpClient(new ApiMetricas(tickets: 5, interceptar: path =>
+            path.Contains("/123/reporting_events") || path.Contains("/126/reporting_events") ? new(HttpStatusCode.Forbidden)
+                : path.Contains("/124/reporting_events") ? new(HttpStatusCode.InternalServerError)
+                : path.Contains("/125/reporting_events") ? new(HttpStatusCode.NotFound) : null))))
+        {
+            var resultado = await api.CarregarAsync(false, new(2026,11,9), new(2026,11,9), null, CancellationToken.None);
+            Check(resultado.Tickets.Single(x => x.Id == 127).Eventos.Count > 0, "falha genérica interrompe sequência de recusas e permite consultar ticket seguinte");
+        }
     }
 }
 
