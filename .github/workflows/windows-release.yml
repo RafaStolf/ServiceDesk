@@ -34,6 +34,7 @@ jobs:
         run: ./Scripts/Testar-LeituraCampos.ps1
       - uses: microsoft/setup-msbuild@v2
       - name: Compilar aplicativo independente
+        timeout-minutes: 10
         shell: pwsh
         run: |
           $version = "1.1.$env:GITHUB_RUN_NUMBER.0"
@@ -62,6 +63,8 @@ jobs:
             throw "ServiceDesk encerrou ao iniciar (código $($process.ExitCode))."
           }
           Stop-Process -Id $process.Id
+          powershell.exe -MTA -NoProfile -ExecutionPolicy Bypass -File ./Scripts/Testar-Metricas.ps1 -PackagePath "$env:GITHUB_WORKSPACE/publish"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & ./Scripts/Testar-SegundoPlano.ps1 -PackagePath "$env:GITHUB_WORKSPACE/publish"
           & ./Scripts/Testar-Atualizador.ps1 -PackagePath "$env:GITHUB_WORKSPACE/publish"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
