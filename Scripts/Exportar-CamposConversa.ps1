@@ -43,6 +43,8 @@ try {
             foreach ($m in $mensagens) {
                 $campos.Add([ordered]@{
                     id = $m.id; created_at = $m.created_at; message_type = $m.message_type; private = $m.private
+                    'is.private' = $m.'is.private'
+                    is = [ordered]@{ private = $m.is.private }
                     sender = [ordered]@{ type = $m.sender.type; id = $m.sender.id }
                     legacy_sender_type = $m.sender_type; legacy_sender_id = $m.sender_id
                     content_type = $m.content_type

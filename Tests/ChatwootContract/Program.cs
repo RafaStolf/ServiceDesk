@@ -26,7 +26,17 @@ Verificar(!MensagemChatwoot.Publica(default) && !MensagemChatwoot.Publica(Mensag
 Verificar(!MensagemChatwoot.Publica(Mensagem("""{"message_type":99}""")), "tipo desconhecido não é presumido público");
 Verificar(MensagemChatwoot.DoAgente(Mensagem("""{"message_type":1,"sender_type":"User","sender_id":42}"""),42), "campos de eventos legados continuam compatíveis");
 
-var mensagens = new[] { agente, contato, bot, nota, atividade, template };
+var notasCC = new[]
+{
+    Mensagem("""{"id":7,"created_at":1794340060,"message_type":1,"is.private":true,"sender":{"id":42,"type":"user"},"content":"PRIVADA-LITERAL-EXCLUIR"}"""),
+    Mensagem("""{"id":8,"created_at":1794340070,"message_type":1,"private":false,"is":{"private":true},"sender":{"id":42,"type":"user"},"content":"PRIVADA-ANINHADA-EXCLUIR"}""")
+};
+foreach (var privadaCC in notasCC)
+    Verificar(MensagemChatwoot.Privada(privadaCC) && !MensagemChatwoot.Publica(privadaCC)
+        && !MensagemChatwoot.DoAgente(privadaCC,42), "is.private exclui mensagem privada mesmo com private=false");
+Verificar(MensagemChatwoot.Publica(Mensagem("""{"message_type":1,"is":{"private":false}}""")), "is.private=false permite mensagem para o cliente");
+
+var mensagens = new[] { agente, contato, bot, nota, atividade, template }.Concat(notasCC).ToArray();
 using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada(mensagens, false))))
 {
     var conversas = await sync.SincronizarAsync(CancellationToken.None);
@@ -36,7 +46,8 @@ using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN
     Verificar(conversa.UltimaMensagemPublicaEm == DateTimeOffset.FromUnixTimeSeconds(1794340050), "relógio de mensagem pública não é confundido com resposta humana");
     var exportacao = await sync.ExportarAtendimentoAsync(conversa, CancellationToken.None);
     Verificar(exportacao.Texto.Contains("Resposta pública") && exportacao.Texto.Contains("Mensagem do contato")
-        && !exportacao.Texto.Contains("NOTA-PRIVADA-EXCLUIR") && !exportacao.Texto.Contains("EVENTO-EXCLUIR"), "exportação mantém mensagens públicas e exclui notas/eventos");
+        && !exportacao.Texto.Contains("NOTA-PRIVADA-EXCLUIR") && !exportacao.Texto.Contains("EVENTO-EXCLUIR")
+        && !exportacao.Texto.Contains("PRIVADA-LITERAL-EXCLUIR") && !exportacao.Texto.Contains("PRIVADA-ANINHADA-EXCLUIR"), "exportação mantém mensagens públicas e exclui notas/eventos");
 }
 using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada([], true))))
 {
@@ -65,6 +76,27 @@ using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN
     var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
     Verificar(conversa.UltimaInteracaoAgenteEm is null, "ausência do agente atribuído não é substituída pelo usuário da configuração");
 }
+// Regressão: conversa recebida ainda sem resposta do agente (ticket 19680).
+{
+    var agora = DateTimeOffset.UtcNow;
+    var recebida = new AtendimentoMonitorado { UltimaMensagemClienteEm = agora.AddMinutes(-8) };
+    recebida.AtualizarTempo(agora);
+    Verificar(recebida.TempoUltimaInteracao == "Cliente: há 8min", "card identifica mensagem recebida sem resposta");
+    Verificar(recebida.UltimaInteracaoAgenteEm is null, "mensagem do cliente não vira resposta do agente");
+    recebida.UltimaInteracaoAgenteEm = agora.AddMinutes(-2);
+    recebida.AtualizarTempo(agora);
+    Verificar(recebida.TempoUltimaInteracao == "Agente: há 2min", "resposta mais recente do agente prevalece");
+}
+foreach (var email in new string?[] { "  contato@example.com  ", null, "", "   " })
+{
+    using var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada(mensagens, false, emailContato: email)));
+    var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
+    var informado = !string.IsNullOrWhiteSpace(email);
+    Verificar(conversa.Email == (email?.Trim() ?? "") && conversa.TemEmail == informado,
+        "e-mail vem do contato e normaliza vazio, nulo e espaços");
+    Verificar(conversa.EmailText == (informado ? "contato@example.com" : "E-mail não informado"),
+        "campo exibe endereço cadastrado ou ausência explícita");
+}
 foreach (var (padrao, esperado) in new[] { ("Empresa oficial", "Empresa oficial"), ("", "Empresa de teste"), ("   ", "Empresa de teste") })
 {
     using var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada(mensagens, false, empresaPadrao: padrao)));
@@ -88,7 +120,7 @@ Verificar(adiada.EstaAdiado && adiada.SituacaoText == "Adiada até a próxima re
 await MetricasTests.ExecutarAsync();
 Console.WriteLine("Contrato Chatwoot validado com dados sintéticos; nenhum servidor real foi consultado.");
 
-sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = false, long? agenteId = 42, string? empresaPadrao = null) : HttpMessageHandler
+sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = false, long? agenteId = 42, string? empresaPadrao = null, string? emailContato = null) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -104,7 +136,7 @@ sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = fal
         }
         else if (caminho.Contains("status=open") && caminho.Contains("page=1&"))
         {
-            object conversa = new { id = 19622, meta = new { sender = new { name = "Contato de teste", additional_attributes = new { company_name = empresaPadrao }, custom_attributes = new { empresa = "Empresa de teste" } }, assignee_type = "User", assignee = agenteId is { } idAgente ? (object)new { id = idAgente } : null }, status = "open", created_at = 1794330000,
+            object conversa = new { id = 19622, meta = new { sender = new { name = "Contato de teste", email = emailContato, additional_attributes = new { company_name = empresaPadrao }, custom_attributes = new { empresa = "Empresa de teste" } }, assignee_type = "User", assignee = agenteId is { } idAgente ? (object)new { id = idAgente } : null }, status = "open", created_at = 1794330000,
                 last_activity_at = 1794399999, last_non_activity_message = vazia ? (object?)null : mensagens.First(x => x.GetProperty("id").GetInt32() == 4) };
             json = JsonSerializer.Serialize(new { data = new { payload = new[] { conversa } } });
         }

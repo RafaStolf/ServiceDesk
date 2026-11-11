@@ -29,9 +29,30 @@ public sealed partial class MainPage
         var cor = new ComboBox { Header = "Cor de destaque", ItemsSource = new[] { "Azul", "Verde", "Roxo", "Laranja", "Vermelho" }, SelectedItem = _preferencias.Cor, HorizontalAlignment = HorizontalAlignment.Stretch };
         var sistema = new ToggleSwitch { Header = "Notificações do Windows", IsOn = _preferencias.NotificacoesSistema };
         var som = new ToggleSwitch { Header = "Som nas notificações do Windows", IsOn = _preferencias.SomNotificacoes, IsEnabled = sistema.IsOn };
+        foreach (var opcao in new[] { iniciarWindows, segundoPlano, ativa, notificacoes, sistema, som, mostrar })
+            opcao.Header = new TextBlock { Text = (string)opcao.Header, TextWrapping = TextWrapping.Wrap };
         sistema.Toggled += (_, _) => som.IsEnabled = sistema.IsOn;
+        var testeNotificacao = new Button { Content = "Testar notificação do Windows", IsEnabled = sistema.IsOn };
+        var resultadoNotificacao = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        sistema.Toggled += (_, _) => testeNotificacao.IsEnabled = sistema.IsOn;
+        testeNotificacao.Click += (_, _) =>
+        {
+            try
+            {
+                _notificacoes.Testar(som.IsOn);
+                resultadoNotificacao.Text = "Teste enviado ao Windows. Confira a central de notificações. O modo Não incomodar pode ocultar o banner.";
+            }
+            catch (Exception ex) { resultadoNotificacao.Text = $"Não foi possível enviar: {ex.Message}"; }
+        };
         var explicacaoAlertas = new TextBlock { Text = "O limite abaixo considera a última interação identificada do agente atribuído. É um alerta local de inatividade, não uma meta de SLA.", TextWrapping = TextWrapping.Wrap };
         var status = new TextBlock { Text = $"Versão instalada: {AtualizacaoAplicativoService.VersaoAtual}", TextWrapping = TextWrapping.Wrap };
+        var autor = new TextBlock { Text = "Desenvolvido por Rafael Stolf Silva", TextWrapping = TextWrapping.Wrap };
+        var repositorio = new HyperlinkButton
+        {
+            Content = "Repositório do ServiceDesk no GitHub",
+            NavigateUri = new Uri("https://github.com/RafaStolf/ServiceDesk"),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
         var verificar = new Button { Content = "Verificar atualizações" };
         var atualizar = new Button { Content = "Atualizar", IsEnabled = false };
         var progresso = new ProgressRing { IsActive = false, Width = 24, Height = 24, HorizontalAlignment = HorizontalAlignment.Left };
@@ -48,16 +69,16 @@ public sealed partial class MainPage
             ("Chatwoot", Painel(url, conta, chave, mostrar, inbox)),
             ("Fila", Painel(ativa, intervalo)),
             ("Aparência", Painel(tema, cor)),
-            ("Alertas", Painel(notificacoes, limite, sistema, som, explicacaoAlertas)),
-            ("Versão", Painel(status, verificar, atualizar, progresso, informacao))
+            ("Alertas", Painel(notificacoes, limite, sistema, som, testeNotificacao, resultadoNotificacao, explicacaoAlertas)),
+            ("Sobre", Painel(autor, repositorio, status, verificar, atualizar, progresso, informacao))
         };
-        var abas = new Grid { Width = Math.Clamp(ActualWidth - 80, 260, 520), Height = Math.Clamp(ActualHeight - 180, 240, 500), RowSpacing = 8 };
+        var abas = new Grid { Height = Math.Clamp(ActualHeight - 240, 180, 500), RowSpacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
         abas.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         abas.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         var navegacao = new Grid { ColumnSpacing = 6, RowSpacing = 6 };
         for (var i = 0; i < 3; i++) navegacao.ColumnDefinitions.Add(new ColumnDefinition());
         for (var i = 0; i < 2; i++) navegacao.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var conteudos = secoes.Select(secao => new ScrollViewer { Content = secao.Painel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Visibility = Visibility.Collapsed }).ToArray();
+        var conteudos = secoes.Select(secao => new ScrollViewer { Content = secao.Painel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, HorizontalScrollMode = ScrollMode.Disabled, HorizontalContentAlignment = HorizontalAlignment.Stretch, Visibility = Visibility.Collapsed }).ToArray();
         var botoes = new List<Microsoft.UI.Xaml.Controls.Primitives.ToggleButton>();
         void Selecionar(int indice)
         {
@@ -72,7 +93,7 @@ public sealed partial class MainPage
         for (var i = 0; i < secoes.Length; i++)
         {
             var indice = i;
-            var botao = new Microsoft.UI.Xaml.Controls.Primitives.ToggleButton { Content = secoes[i].Nome, Style = (Style)Resources["FiltroStyle"], HorizontalAlignment = HorizontalAlignment.Stretch };
+            var botao = new Microsoft.UI.Xaml.Controls.Primitives.ToggleButton { Content = new TextBlock { Text = secoes[i].Nome, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center }, Style = (Style)Resources["FiltroStyle"], MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center };
             botao.Click += (_, _) => Selecionar(indice);
             Grid.SetRow(botao, i / 3);
             Grid.SetColumn(botao, i % 3);
@@ -84,7 +105,9 @@ public sealed partial class MainPage
         abas.Children.Add(navegacao);
         Selecionar(0);
         var erro = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        var dialogo = new ContentDialog { XamlRoot = XamlRoot, Title = "Configurações", Content = Painel(abas, erro), PrimaryButtonText = "Salvar", CloseButtonText = "Fechar" };
+        var conteudoDialogo = Painel(abas, erro);
+        conteudoDialogo.Margin = new Thickness(0);
+        var dialogo = new ContentDialog { XamlRoot = XamlRoot, Title = "Configurações", Content = conteudoDialogo, HorizontalContentAlignment = HorizontalAlignment.Stretch, PrimaryButtonText = "Salvar", CloseButtonText = "Fechar" };
         AtualizacaoAplicativo? disponivel = null;
         var ocupado = false;
         dialogo.Closing += (_, args) => args.Cancel = ocupado;

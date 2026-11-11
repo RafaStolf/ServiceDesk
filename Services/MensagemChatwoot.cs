@@ -17,7 +17,19 @@ internal static class MensagemChatwoot
 
     public static bool Publica(JsonElement mensagem) =>
         Tipo(mensagem) is 0 or 1 or 3
-        && !(mensagem.TryGetProperty("private", out var privada) && privada.ValueKind == JsonValueKind.True);
+        && !Privada(mensagem);
+
+    public static bool Privada(JsonElement mensagem)
+    {
+        if (mensagem.ValueKind != JsonValueKind.Object) return false;
+        static bool Verdadeira(JsonElement objeto, string campo) =>
+            objeto.TryGetProperty(campo, out var valor) && valor.ValueKind == JsonValueKind.True;
+        // API oficial: private. Compatibilidade CCChatwoot: is.private, literal ou aninhado.
+        // Qualquer marcação privada prevalece quando os campos divergem.
+        return Verdadeira(mensagem, "private") || Verdadeira(mensagem, "is.private")
+            || mensagem.TryGetProperty("is", out var flags) && flags.ValueKind == JsonValueKind.Object
+                && Verdadeira(flags, "private");
+    }
 
     public static string? TipoRemetente(JsonElement mensagem)
     {
