@@ -50,6 +50,7 @@ public sealed partial class MainPage : Page
     private async void Page_Loaded(object sender, RoutedEventArgs e)
     {
         AplicarPreferenciasInterface();
+        if (Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1") ValidarFiltros();
         await AtualizarAsync();
     }
     private async void AtualizarButton_Click(object sender, RoutedEventArgs e) => await AtualizarAsync();
@@ -68,7 +69,7 @@ public sealed partial class MainPage : Page
             NotificarAtendimentosPendentes();
             _aviso.Stop();
             StatusInfo.IsOpen = false;
-            SincronizacaoText.Text = $"Atualizado às {DateTime.Now:HH:mm} · {_atendimentos.Count} atendimento(s)";
+            SincronizacaoText.Text = $"Atualizado às {DateTime.Now:HH:mm} · {_atendimentos.Count} ticket(s)";
         }
         catch (Exception ex)
         {
@@ -136,6 +137,27 @@ public sealed partial class MainPage : Page
         }
     }
 
+    private void ValidarFiltros()
+    {
+        var anterior = _filtroStatus;
+        foreach (var filtro in new[] { AbertosFiltro, AdiadosFiltro, TodosFiltro })
+        {
+            _filtroStatus = (string)filtro.Tag;
+            AtualizarFiltrosVisuais();
+            filtro.ApplyTemplate();
+            foreach (var estado in new[] { "Checked", "CheckedPointerOver", "CheckedPressed" })
+            {
+                VisualStateManager.GoToState(filtro, estado, false);
+                filtro.UpdateLayout();
+                if (VisualTreeHelper.GetChild(filtro, 0) is not Border raiz
+                    || raiz.Background is not SolidColorBrush cor || !cor.Color.Equals(CorDestaque().Color))
+                    throw new InvalidOperationException("O filtro perdeu a cor de destaque em " + estado);
+            }
+        }
+        _filtroStatus = anterior;
+        AtualizarFiltrosVisuais();
+    }
+
     private void Lista_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         var colunas = Math.Clamp((int)(e.NewSize.Width / 360), 1, 4);
@@ -163,7 +185,7 @@ public sealed partial class MainPage : Page
         }
         if (visiveis.Count == 0)
         {
-            var vazio = new TextBlock { Text = "Nenhum atendimento corresponde aos filtros.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 24, 0, 24) };
+            var vazio = new TextBlock { Text = "Nenhum ticket corresponde aos filtros.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 24, 0, 24) };
             Grid.SetColumnSpan(vazio, _colunas);
             AtendimentosList.Children.Add(vazio);
         }
@@ -176,10 +198,10 @@ public sealed partial class MainPage : Page
         var cabecalho = new Grid { ColumnSpacing = 8 };
         cabecalho.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         cabecalho.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        cabecalho.Children.Add(new TextBlock { Text = $"Atendimento #{atendimento.Id}", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        cabecalho.Children.Add(new TextBlock { Text = $"Ticket #{atendimento.Id}", FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
         var opcoes = new Button { Content = new FontIcon { Glyph = "\uE712" }, Padding = new Thickness(8), MinWidth = 32, MinHeight = 32 };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(opcoes, $"Opções do atendimento {atendimento.Id}");
-        ToolTipService.SetToolTip(opcoes, "Opções do atendimento");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(opcoes, $"Opções do ticket {atendimento.Id}");
+        ToolTipService.SetToolTip(opcoes, "Opções do ticket");
         var menu = new MenuFlyout();
         void Acao(string texto, Func<Task> executar)
         {
@@ -205,18 +227,15 @@ public sealed partial class MainPage : Page
         var tempo = new TextBlock { FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
         tempo.SetBinding(TextBlock.TextProperty, new Binding { Source = atendimento, Path = new PropertyPath(nameof(AtendimentoMonitorado.TempoUltimaInteracaoAgente)), Mode = BindingMode.OneWay });
         conteudo.Children.Add(tempo);
-        conteudo.Children.Add(new TextBlock { Text = atendimento.SituacaoText, Opacity = 0.7, TextWrapping = TextWrapping.Wrap });
+        if (_filtroStatus == "Todos" || atendimento.EstaAdiado)
+            conteudo.Children.Add(new TextBlock { Text = atendimento.SituacaoText, Opacity = 0.7, TextWrapping = TextWrapping.Wrap });
         card.Child = conteudo;
         return card;
     }
 
     private List<AtendimentoMonitorado> FiltrarAtendimentos()
     {
-        var busca = BuscaTextBox.Text?.Trim() ?? string.Empty;
         return _atendimentos.Where(item => _filtroStatus switch { "Em aberto" => !item.EstaAdiado, "Adiado" => item.EstaAdiado, _ => true })
-            .Where(item => string.IsNullOrWhiteSpace(busca) || item.Cliente.Contains(busca, StringComparison.OrdinalIgnoreCase)
-                || item.Empresa.Contains(busca, StringComparison.OrdinalIgnoreCase) || item.Telefone.Contains(busca, StringComparison.OrdinalIgnoreCase)
-                || item.Id.ToString().Contains(busca, StringComparison.OrdinalIgnoreCase))
             .OrderBy(item => item.ReferenciaInteracao).ThenBy(item => item.Id).ToList();
     }
 
@@ -226,7 +245,6 @@ public sealed partial class MainPage : Page
         AtualizarFiltrosVisuais();
         PreencherLista();
     }
-    private void BuscaTextBox_TextChanged(object sender, TextChangedEventArgs e) => AplicarFiltros();
     private void Filtro_Click(object sender, RoutedEventArgs e)
     {
         _filtroStatus = (sender as FrameworkElement)?.Tag as string ?? "Em aberto";
@@ -243,7 +261,7 @@ public sealed partial class MainPage : Page
         var novosAlertas = _notificacoes.NotificarAtendimentosSemInteracao(_atendimentos, _limiteNotificacaoMinutos, _preferencias);
         if (novosAlertas.Count == 0) return;
         var primeiro = novosAlertas[0];
-        AlertaInteracaoInfo.Title = novosAlertas.Count == 1 ? $"Atendimento #{primeiro.Id}" : $"{novosAlertas.Count} atendimentos";
+        AlertaInteracaoInfo.Title = novosAlertas.Count == 1 ? $"Ticket #{primeiro.Id}" : $"{novosAlertas.Count} tickets";
         AlertaInteracaoInfo.Message = $"{primeiro.Cliente} · Última interação {primeiro.TempoUltimaInteracaoAgente}";
         AlertaInteracaoInfo.IsOpen = true;
     }
@@ -271,7 +289,7 @@ public sealed partial class MainPage : Page
                 var dadosCopiados = new Windows.ApplicationModel.DataTransfer.DataPackage();
                 dadosCopiados.SetText(exportacao.Texto);
                 Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dadosCopiados);
-                MostrarAviso("Texto copiado", $"Atendimento #{atendimento.Id} copiado.", InfoBarSeverity.Success);
+                MostrarAviso("Texto copiado", $"Ticket #{atendimento.Id} copiado.", InfoBarSeverity.Success);
                 return;
             }
             var previa = CriarPreviaExportacao(exportacao.Texto);
@@ -286,7 +304,7 @@ public sealed partial class MainPage : Page
             conteudo.Children.Add(incluirMidias);
             var dialogo = new ContentDialog
             {
-                XamlRoot = XamlRoot, Title = $"Exportar atendimento #{atendimento.Id}", Content = conteudo,
+                XamlRoot = XamlRoot, Title = $"Exportar ticket #{atendimento.Id}", Content = conteudo,
                 PrimaryButtonText = "Copiar texto", SecondaryButtonText = "Salvar arquivo", CloseButtonText = "Cancelar"
             };
             var resultado = await dialogo.ShowAsync();
@@ -307,7 +325,7 @@ public sealed partial class MainPage : Page
                         WinRT.Interop.WindowNative.GetWindowHandle(((App)Application.Current).MainWindow));
                     var pasta = await seletor.PickSingleFolderAsync();
                     if (pasta is null) return;
-                    var pastaAtendimento = await pasta.CreateFolderAsync($"Atendimento-{atendimento.Id}", Windows.Storage.CreationCollisionOption.GenerateUniqueName);
+                    var pastaAtendimento = await pasta.CreateFolderAsync($"Ticket-{atendimento.Id}", Windows.Storage.CreationCollisionOption.GenerateUniqueName);
                     var destino = pastaAtendimento.Path;
                     try
                     {
@@ -315,7 +333,7 @@ public sealed partial class MainPage : Page
                         StatusInfo.Message = $"Baixando {exportacao.Anexos.Count} anexo(s)...";
                         StatusInfo.Severity = InfoBarSeverity.Informational;
                         StatusInfo.IsOpen = true;
-                        await PacoteAtendimento.SalvarPastaAsync(destino, exportacao with { Texto = previa.Text }, CancellationToken.None, $"Atendimento-{atendimento.Id}.md");
+                        await PacoteAtendimento.SalvarPastaAsync(destino, exportacao with { Texto = previa.Text }, CancellationToken.None, $"Ticket-{atendimento.Id}.md");
                     }
                     catch
                     {
@@ -325,7 +343,7 @@ public sealed partial class MainPage : Page
                 }
                 else
                 {
-                    var seletor = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"Atendimento-{atendimento.Id}" };
+                    var seletor = new Windows.Storage.Pickers.FileSavePicker { SuggestedFileName = $"Ticket-{atendimento.Id}" };
                     seletor.FileTypeChoices.Add("Markdown", new List<string> { ".md" });
                     WinRT.Interop.InitializeWithWindow.Initialize(seletor,
                         WinRT.Interop.WindowNative.GetWindowHandle(((App)Application.Current).MainWindow));
@@ -334,7 +352,7 @@ public sealed partial class MainPage : Page
                     await Windows.Storage.FileIO.WriteTextAsync(arquivo, previa.Text);
                 }
             }
-            MostrarAviso(resultado == ContentDialogResult.Primary ? "Texto copiado" : "Arquivo salvo", $"Atendimento #{atendimento.Id}.", InfoBarSeverity.Success);
+            MostrarAviso(resultado == ContentDialogResult.Primary ? "Texto copiado" : "Arquivo salvo", $"Ticket #{atendimento.Id}.", InfoBarSeverity.Success);
         }
         catch (Exception ex)
         {
@@ -352,7 +370,7 @@ public sealed partial class MainPage : Page
         }
         catch (Exception ex)
         {
-            MostrarAviso("Não foi possível abrir o atendimento", ex.Message, InfoBarSeverity.Error);
+            MostrarAviso("Não foi possível abrir o ticket", ex.Message, InfoBarSeverity.Error);
         }
     }
 }

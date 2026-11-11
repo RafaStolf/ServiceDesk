@@ -33,7 +33,7 @@ public sealed class ServicoNotificacoes
 
     private static void Exibir(AtendimentoMonitorado atendimento, bool som)
     {
-        var titulo = $"ServiceDesk · Atendimento #{atendimento.Id}";
+        var titulo = $"ServiceDesk · Ticket #{atendimento.Id}";
         var identificacao = string.IsNullOrWhiteSpace(atendimento.Empresa) ? atendimento.Cliente : $"{atendimento.Cliente} · {atendimento.Empresa}";
         var mensagem = $"Última interação {atendimento.TempoUltimaInteracaoAgente}";
         var audio = som ? "" : "<audio silent=\"true\"/>";

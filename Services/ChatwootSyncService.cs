@@ -60,7 +60,7 @@ public sealed class ChatwootSyncService : IDisposable
         }
         var arquivos = new List<AnexoAtendimento>();
         var texto = new System.Text.StringBuilder();
-        texto.AppendLine($"# Conversa #{atendimento.Id}");
+        texto.AppendLine($"# Ticket #{atendimento.Id}");
         texto.AppendLine();
         texto.AppendLine($"Contato: {atendimento.Cliente}");
         texto.AppendLine($"Empresa: {atendimento.Empresa}");
@@ -128,16 +128,21 @@ public sealed class ChatwootSyncService : IDisposable
             ? LerTexto(sender, "name") : null;
         var telefone = conversa.TryGetProperty("meta", out var metadados) && metadados.TryGetProperty("sender", out var contato)
             ? LerTexto(contato, "phone_number") : null;
-        var empresa = LerAtributo(conversa, "empresa", "company");
+        string? empresa = null;
         if (conversa.TryGetProperty("meta", out var contexto) && contexto.ValueKind == JsonValueKind.Object
             && contexto.TryGetProperty("sender", out var contatoDados) && contatoDados.ValueKind == JsonValueKind.Object)
-            empresa ??= LerAtributo(contatoDados, "empresa", "company");
+        {
+            if (contatoDados.TryGetProperty("additional_attributes", out var adicionais) && adicionais.ValueKind == JsonValueKind.Object)
+                empresa = LerTexto(adicionais, "company_name");
+            if (string.IsNullOrWhiteSpace(empresa)) empresa = LerAtributo(contatoDados, "empresa", "company");
+        }
+        if (string.IsNullOrWhiteSpace(empresa)) empresa = LerAtributo(conversa, "empresa", "company");
         var status = LerTexto(conversa, "status") ?? "open";
 
         return new AtendimentoMonitorado
         {
             Id = id,
-            Cliente = string.IsNullOrWhiteSpace(remetente) ? $"Atendimento #{id}" : remetente,
+            Cliente = string.IsNullOrWhiteSpace(remetente) ? $"Ticket #{id}" : remetente,
             Telefone = telefone ?? string.Empty,
             Empresa = empresa ?? string.Empty,
             Status = status,
@@ -238,7 +243,7 @@ public sealed class ChatwootSyncService : IDisposable
         if (conversa.ValueKind != JsonValueKind.Object || !conversa.TryGetProperty("custom_attributes", out var atributos) || atributos.ValueKind != JsonValueKind.Object) return null;
         foreach (var nome in nomes)
         {
-            if (atributos.TryGetProperty(nome, out var valor) && valor.ValueKind == JsonValueKind.String) return valor.GetString();
+            if (atributos.TryGetProperty(nome, out var valor) && valor.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(valor.GetString())) return valor.GetString()!.Trim();
         }
         return null;
     }

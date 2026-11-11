@@ -21,7 +21,7 @@ public sealed partial class MainPage
         var iniciarWindows = new ToggleSwitch { Header = "Iniciar com o Windows", IsOn = InicializacaoWindowsService.IniciarComWindows };
         var segundoPlano = new ToggleSwitch { Header = "Continuar em segundo plano ao fechar a janela", IsOn = InicializacaoWindowsService.ManterEmSegundoPlano };
         var instrucaoGeral = new TextBlock { Text = "Ao entrar no Windows, o ServiceDesk inicia junto ao relógio. Clique no ícone para abrir. Use o menu do ícone → Sair para encerrar completamente.", TextWrapping = TextWrapping.Wrap };
-        var ativa = new ToggleSwitch { Header = "Atualizar atendimentos automaticamente", IsOn = _atualizacaoAutomaticaAtiva };
+        var ativa = new ToggleSwitch { Header = "Atualizar tickets automaticamente", IsOn = _atualizacaoAutomaticaAtiva };
         var intervalo = new NumberBox { Header = "Intervalo de atualização (minutos)", Minimum = 1, Maximum = 120, Value = _intervaloAtualizacaoMinutos, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline };
         var notificacoes = new ToggleSwitch { Header = "Ativar alertas de última interação", IsOn = _notificacoesAtivas };
         var limite = new NumberBox { Header = "Alertar após quantos minutos", Minimum = 1, Maximum = 1440, Value = _limiteNotificacaoMinutos, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline };
@@ -42,14 +42,47 @@ public sealed partial class MainPage
             foreach (var item in itens) painel.Children.Add(item);
             return painel;
         }
-        PivotItem Aba(string nome, StackPanel painel) => new() { Header = nome, Content = new ScrollViewer { Content = painel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
-        var abas = new Pivot { Width = Math.Clamp(ActualWidth - 80, 260, 520), Height = Math.Clamp(ActualHeight - 180, 240, 500) };
-        abas.Items.Add(Aba("Geral", Painel(iniciarWindows, segundoPlano, instrucaoGeral)));
-        abas.Items.Add(Aba("Chatwoot", Painel(url, conta, chave, mostrar, inbox)));
-        abas.Items.Add(Aba("Fila", Painel(ativa, intervalo)));
-        abas.Items.Add(Aba("Aparência", Painel(tema, cor)));
-        abas.Items.Add(Aba("Alertas", Painel(notificacoes, limite, sistema, som, explicacaoAlertas)));
-        abas.Items.Add(Aba("Versão", Painel(status, verificar, atualizar, progresso, informacao)));
+        var secoes = new (string Nome, StackPanel Painel)[]
+        {
+            ("Geral", Painel(iniciarWindows, segundoPlano, instrucaoGeral)),
+            ("Chatwoot", Painel(url, conta, chave, mostrar, inbox)),
+            ("Fila", Painel(ativa, intervalo)),
+            ("Aparência", Painel(tema, cor)),
+            ("Alertas", Painel(notificacoes, limite, sistema, som, explicacaoAlertas)),
+            ("Versão", Painel(status, verificar, atualizar, progresso, informacao))
+        };
+        var abas = new Grid { Width = Math.Clamp(ActualWidth - 80, 260, 520), Height = Math.Clamp(ActualHeight - 180, 240, 500), RowSpacing = 8 };
+        abas.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        abas.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        var navegacao = new Grid { ColumnSpacing = 6, RowSpacing = 6 };
+        for (var i = 0; i < 3; i++) navegacao.ColumnDefinitions.Add(new ColumnDefinition());
+        for (var i = 0; i < 2; i++) navegacao.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var conteudos = secoes.Select(secao => new ScrollViewer { Content = secao.Painel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Visibility = Visibility.Collapsed }).ToArray();
+        var botoes = new List<Microsoft.UI.Xaml.Controls.Primitives.ToggleButton>();
+        void Selecionar(int indice)
+        {
+            for (var j = 0; j < botoes.Count; j++)
+            {
+                botoes[j].IsChecked = j == indice;
+                botoes[j].Background = j == indice ? CorDestaque() : new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                botoes[j].Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(j == indice || ActualTheme == ElementTheme.Dark ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black);
+                conteudos[j].Visibility = j == indice ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+        for (var i = 0; i < secoes.Length; i++)
+        {
+            var indice = i;
+            var botao = new Microsoft.UI.Xaml.Controls.Primitives.ToggleButton { Content = secoes[i].Nome, Style = (Style)Resources["FiltroStyle"], HorizontalAlignment = HorizontalAlignment.Stretch };
+            botao.Click += (_, _) => Selecionar(indice);
+            Grid.SetRow(botao, i / 3);
+            Grid.SetColumn(botao, i % 3);
+            navegacao.Children.Add(botao);
+            botoes.Add(botao);
+            Grid.SetRow(conteudos[i], 1);
+            abas.Children.Add(conteudos[i]);
+        }
+        abas.Children.Add(navegacao);
+        Selecionar(0);
         var erro = new TextBlock { TextWrapping = TextWrapping.Wrap };
         var dialogo = new ContentDialog { XamlRoot = XamlRoot, Title = "Configurações", Content = Painel(abas, erro), PrimaryButtonText = "Salvar", CloseButtonText = "Fechar" };
         AtualizacaoAplicativo? disponivel = null;
