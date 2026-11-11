@@ -33,17 +33,28 @@ public sealed class MetricasChatwootService : IDisposable
         var avisos = new HashSet<string>();
         var conversas = new Dictionary<long, JsonElement>();
         var parcial = false;
+        var interromperLista = false;
+        var limiteDaApi = false;
         var prefixo = $"api/v1/accounts/{_configuracao.ContaId}/conversations";
         foreach (var estado in historico ? new[] { "all" } : new[] { "open", "snoozed" })
         {
+            var idsLidos = new HashSet<long>();
             for (var pagina = 1; pagina <= MaximoPaginas; pagina++)
             {
                 progresso?.Report($"Lendo tickets · {conversas.Count} encontrados…");
                 var inbox = _configuracao.InboxId is { } caixa ? $"&inbox_id={caixa}" : "";
                 JsonDocument documento;
                 try { documento = await ObterAsync($"{prefixo}?assignee_type=me&status={estado}&page={pagina}{inbox}", token); }
-                catch (HttpRequestException) when (conversas.Count > 0)
-                { parcial = true; avisos.Add("A consulta dos tickets foi interrompida. Os resultados são parciais; tente atualizar mais tarde."); break; }
+                catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized) { throw; }
+                catch (Exception ex) when (conversas.Count > 0 && (ex is HttpRequestException || ex is OperationCanceledException && !token.IsCancellationRequested))
+                {
+                    parcial = interromperLista = true;
+                    limiteDaApi = ex is HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests };
+                    avisos.Add(ex is HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests }
+                        ? "O Chatwoot limitou as consultas (429). Lista parcial; aguarde antes de atualizar."
+                        : "A consulta dos tickets foi interrompida. Os resultados são parciais; tente atualizar mais tarde.");
+                    break;
+                }
                 using (documento)
                 {
                     var itens = documento.RootElement.GetProperty("data").GetProperty("payload");
@@ -52,10 +63,11 @@ public sealed class MetricasChatwootService : IDisposable
                     foreach (var item in itens.EnumerateArray())
                     {
                         var id = Numero(item, "id");
+                        if (id is not null && idsLidos.Add(id.Value)) novos++;
                         // Confere atribuição também no payload: o endpoint pode mudar durante a paginação.
                         if (id is null || Numero(Objeto(Objeto(item, "meta"), "assignee"), "id") != usuarioId || conversas.ContainsKey(id.Value)) continue;
-                        conversas.Add(id.Value, item.Clone()); novos++;
-                        if (conversas.Count >= MaximoTickets) break;
+                        conversas.Add(id.Value, item.Clone());
+                        if (interromperLista || conversas.Count >= MaximoTickets) break;
                     }
                     if (novos == 0 || pagina == MaximoPaginas || conversas.Count >= MaximoTickets)
                     {
@@ -65,10 +77,11 @@ public sealed class MetricasChatwootService : IDisposable
                     }
                 }
             }
-            if (conversas.Count >= MaximoTickets) break;
+            if (interromperLista || conversas.Count >= MaximoTickets) break;
         }
         var resultado = new List<TicketMetricas>();
-        string? indisponibilidadeEventos = null;
+        string? indisponibilidadeEventos = limiteDaApi ? "Eventos não consultados: o Chatwoot limitou a consulta de tickets (429). Aguarde antes de atualizar." : null;
+        var falhasEventosConsecutivas = 0;
         foreach (var (id, conversa) in conversas)
         {
             token.ThrowIfCancellationRequested();
@@ -82,6 +95,7 @@ public sealed class MetricasChatwootService : IDisposable
                     using var documento = await ObterAsync($"{prefixo}/{id}/reporting_events", token);
                     var raiz = documento.RootElement;
                     if (raiz.ValueKind != JsonValueKind.Array) throw new JsonException("Formato de eventos desconhecido.");
+                    falhasEventosConsecutivas = 0;
                     foreach (var item in raiz.EnumerateArray())
                     {
                         var data = Data(item, "created_at");
@@ -93,13 +107,19 @@ public sealed class MetricasChatwootService : IDisposable
                 }
                 catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound or HttpStatusCode.TooManyRequests)
                 {
-                    indisponibilidadeEventos = aviso = ex.StatusCode switch
+                    aviso = ex.StatusCode switch
                     {
                         HttpStatusCode.Forbidden => "A API não permitiu consultar eventos de métricas com esta chave (403).",
-                        HttpStatusCode.NotFound => "O endpoint de eventos de métricas não está disponível nesta consulta (404).",
+                        HttpStatusCode.NotFound => "Não foi possível obter eventos deste ticket (404); o recurso ou o ticket pode não estar disponível.",
                         _ => "O Chatwoot limitou as consultas (429). Aguarde antes de atualizar."
                     };
                     avisos.Add(aviso); parcial = true;
+                    falhasEventosConsecutivas++;
+                    if (ex.StatusCode == HttpStatusCode.TooManyRequests || falhasEventosConsecutivas >= 3)
+                    {
+                        indisponibilidadeEventos = "Consultas de eventos interrompidas após limite da API ou falhas consecutivas. Os tickets restantes não tiveram os eventos consultados.";
+                        avisos.Add(indisponibilidadeEventos);
+                    }
                 }
                 catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized) { throw; }
                 catch (Exception ex) when (ex is HttpRequestException or JsonException || ex is OperationCanceledException && !token.IsCancellationRequested)
@@ -117,10 +137,12 @@ public sealed class MetricasChatwootService : IDisposable
             // Na visão histórica, um ticket entra quando há evento no período ou alteração do SLA no período.
             var slaData = Data(Objeto(conversa, "applied_sla"), "updated_at");
             var temOcorrencia = ocorrencias.Any(x => x.RegistradaEm is { } data && data >= periodo.Inicio && data < periodo.FimExclusivo);
-            if (!historico || eventos.Count > 0 || temOcorrencia || slaData is { } atualizacao && atualizacao >= periodo.Inicio && atualizacao < periodo.FimExclusivo || aviso is not null)
-                resultado.Add(new(id, Texto(contato, "name") ?? $"Ticket #{id}", empresa, Texto(conversa,"status") ?? "", eventos, politica, ocorrencias, aviso));
+            var periodoConfirmado = !historico || eventos.Count > 0 || temOcorrencia || slaData is { } atualizacao && atualizacao >= periodo.Inicio && atualizacao < periodo.FimExclusivo;
+            if (periodoConfirmado || aviso is not null)
+                resultado.Add(new(id, Texto(contato, "name") ?? $"Ticket #{id}", empresa, Texto(conversa,"status") ?? "", eventos, politica, ocorrencias, aviso, periodoConfirmado));
         }
         if (resultado.Any(x => x.Sla is null)) avisos.Add("Tickets sem política de SLA retornada não são classificados como SLA cumprido. A disponibilidade depende da instalação e da política aplicada.");
+        if (resultado.Any(x => !x.PeriodoConfirmado)) avisos.Add("Alguns tickets estão listados apenas para indicar falha de consulta: sua presença no período não pôde ser confirmada e eles não entram no resumo de SLA.");
         if (historico) avisos.Add("Recorte: tickets atualmente atribuídos a você; transferidos podem não aparecer. O período filtra os registros de métricas pela data de criação em Brasília. O estado do SLA exibido é o retornado agora, não uma fotografia histórica.");
         return new(resultado, avisos.ToArray(), parcial, DateTimeOffset.UtcNow);
     }

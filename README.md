@@ -1,11 +1,11 @@
 # ServiceDesk
 
-Aplicativo Windows para acompanhar conversas atribuídas ao analista no Chatwoot. Os cards priorizam identificação, empresa e ID do atendimento e mostram o tempo desde a última interação identificada do agente atribuído.
+Aplicativo Windows para acompanhar conversas atribuídas ao analista no Chatwoot. Os cards priorizam identificação, empresa e ID do ticket e mostram o tempo desde a última interação identificada do agente atribuído.
 
 ## O que o aplicativo faz
 
 - Consulta conversas abertas e adiadas atribuídas ao analista no Chatwoot.
-- Permite filtrar por situação e pesquisar contato, telefone, empresa ou ID.
+- Permite filtrar a fila por Em aberto, Adiados e Todos.
 - Mostra contato, empresa, ID, situação e o tempo da última interação do agente atribuído, sem prévia de mensagem ou nome do agente.
 - Ignora notas privadas e eventos do sistema para o cálculo de interação.
 - Exibe alertas locais configuráveis por tempo sem interação.
@@ -15,9 +15,9 @@ O ServiceDesk somente lê dados do Chatwoot. Ele não envia mensagens, não alte
 
 ## Configuração inicial
 
-Ao abrir o aplicativo, selecione **Chatwoot** no canto superior direito e informe o endereço, a chave API pessoal, o ID da conta e o ID da caixa de entrada. A chave fica oculta por padrão; use **Mostrar chave da API** apenas quando necessário.
+Ao abrir o aplicativo, abra **Configurações → Chatwoot** e informe o endereço, a chave API pessoal, o ID da conta e o ID da caixa de entrada. A chave fica oculta por padrão; use **Mostrar chave da API** apenas quando necessário.
 
-A configuração é salva somente no perfil Windows do usuário, em `%USERPROFILE%\.servicedesk\application.properties`, e não deve ser enviada ao GitHub. Em **Configurações → Atendimentos**, escolha o intervalo de sincronização e o limite de minutos que gera uma notificação.
+A configuração é salva somente no perfil Windows do usuário, em `%USERPROFILE%\.servicedesk\application.properties`, e não deve ser enviada ao GitHub. Em **Configurações → Fila**, escolha o intervalo de sincronização. Em **Alertas**, ajuste o limite de minutos e as notificações.
 
 ## Requisitos para desenvolvimento
 
@@ -38,9 +38,9 @@ Abra a pasta que contém `ServiceDesk.csproj`. O arquivo principal da tela é `M
 
 ## Distribuição
 
-O projeto é um aplicativo WinUI empacotado (MSIX). Quando estiver aprovado, gere o pacote pelo perfil `Properties/PublishProfiles/win-x64.pubxml` e entregue o instalador aos colegas.
+Baixe `ServiceDesk-Setup-win-x64.exe` em [Releases](https://github.com/RafaStolf/ServiceDesk/releases/latest). O instalador inclui as dependências e não exige Git. O ZIP portátil também está disponível. A versão instalada verifica atualizações em **Configurações → Versão**.
 
-Cada pessoa deverá configurar sua própria chave API, ID de agente e caixa de entrada após instalar. Não inclua credenciais em commits, releases ou instaladores.
+Cada pessoa deverá configurar sua própria chave API, conta e caixa de entrada após instalar. Não inclua credenciais em commits, releases ou instaladores.
 
 ## Documentos de processo
 
@@ -85,3 +85,13 @@ A inicialização automática registra somente o executável no perfil do usuár
 Consulte [o glossário e os critérios de validação](docs/GLOSSARIO-CHATWOOT.md). O card mostra a última interação identificada do agente atribuído; esse tempo não é uma meta de SLA. Quando a data é desconhecida, não é substituída pela criação da conversa. O campo de remetente do endpoint é `sender.type`/`sender.id`.
 
 O ícone da Centrium é preservado. As preferências visuais ficam em `%USERPROFILE%\.servicedesk\interface.json`. As notificações não incluem botão ou ação para abrir o Chatwoot. Na versão instalada, o atalho do menu Iniciar registra a identidade das notificações; versões portáteis sem esse registro usam o alerta dentro do aplicativo como alternativa.
+
+## Métricas e SLA
+
+Abra **Métricas** no topo para consultar a fila atual ou o histórico. No histórico, escolha datas inclusivas no fuso de Brasília e clique em Atualizar, ou use Hoje, 7 dias e 30 dias. As médias de primeira resposta, respostas seguintes e resolução usam eventos oficiais do usuário autenticado; cada indicador informa seu número de registros. Reaberturas podem produzir vários eventos de resolução para o mesmo ticket. A base de tempo alterna entre corrido e útil sem alterar a política do Chatwoot.
+
+**Ver detalhes** mostra metas, vencimentos e ocorrências retornadas pela API. O contador de última interação da fila é independente desses indicadores. Dados indisponíveis não viram zero nem SLA cumprido; a edição, as permissões e as políticas da instalação determinam a disponibilidade.
+
+O histórico consulta tickets **atualmente atribuídos** ao usuário; transferidos podem não aparecer. O período filtra a criação dos eventos de relatório, ocorrências ou atualização do SLA; o estado do SLA mostrado é o atual. Tickets sem consulta suficiente para confirmar o período são identificados e ficam fora do resumo de SLA. A leitura é sob demanda, cancelável, limitada a 10 páginas por situação e 250 tickets, com avisos de resultados parciais. Após três recusas/ausências consecutivas dos eventos, a consulta desses eventos é interrompida e informada; uma falha isolada não impede os tickets seguintes. Um limite HTTP 429 interrompe novas consultas.
+
+A integração continua somente GET. Nenhuma meta contratual, pausa ou calendário é presumido localmente. Horas úteis e prazos nativos seguem o cadastro do Chatwoot.

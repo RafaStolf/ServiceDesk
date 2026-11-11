@@ -48,20 +48,46 @@ internal static class MetricasTests
             try { await api.CarregarAsync(false, new(2026,11,9), new(2026,11,9), null, cts.Token); throw new Exception("Cancelamento ignorado"); }
             catch (OperationCanceledException) { Check(true, "cancelamento interrompe a consulta"); }
         }
+        using (var api = new MetricasChatwootService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, null, 1), new HttpClient(new ApiMetricas(HttpStatusCode.NotFound, tickets: 2, somentePrimeiro: true))))
+        {
+            var resultado = await api.CarregarAsync(false, new(2026,11,9), new(2026,11,9), null, CancellationToken.None);
+            Check(resultado.Tickets.Single(x => x.Id == 124).Eventos.Count > 0, "404 em um ticket não esconde eventos de outro ticket");
+        }
+        using (var api = new MetricasChatwootService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, null, 1), new HttpClient(new ApiMetricas(interceptar: path => path.Contains("page=2&") ? new(HttpStatusCode.Unauthorized) : null))))
+        {
+            try { await api.CarregarAsync(false, new(2026,11,9), new(2026,11,9), null, CancellationToken.None); throw new Exception("401 da paginação foi ignorado"); }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Unauthorized) { Check(true, "401 durante paginação interrompe a consulta"); }
+        }
+        using (var api = new MetricasChatwootService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, null, 1), new HttpClient(new ApiMetricas(interceptar: path => path.Contains("page=2&") ? throw new TaskCanceledException("Timeout simulado") : null))))
+        {
+            var resultado = await api.CarregarAsync(false, new(2026,11,9), new(2026,11,9), null, CancellationToken.None);
+            Check(resultado.Parcial && resultado.Tickets.Count == 1, "timeout depois de obter dados preserva resultado parcial");
+        }
+        using (var api = new MetricasChatwootService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, null, 1), new HttpClient(new ApiMetricas(interceptar: path => path.Contains("page=2&") ? new(HttpStatusCode.TooManyRequests) : null))))
+        {
+            var resultado = await api.CarregarAsync(false, new(2026,11,9), new(2026,11,9), null, CancellationToken.None);
+            Check(resultado.Parcial && resultado.Tickets.All(x => x.Eventos.Count == 0), "429 na listagem impede novas consultas de eventos");
+        }
+        using (var api = new MetricasChatwootService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, null, 1), new HttpClient(new ApiMetricas(tickets: 251))))
+        {
+            var resultado = await api.CarregarAsync(false, new(2026,11,9), new(2026,11,9), null, CancellationToken.None);
+            Check(resultado.Parcial && resultado.Tickets.Count == 250, "limite de 250 tickets é explícito e respeitado");
+        }
     }
 }
 
-internal sealed class ApiMetricas(HttpStatusCode? falhaEventos = null, bool repetir = false, bool semSla = false) : HttpMessageHandler
+internal sealed class ApiMetricas(HttpStatusCode? falhaEventos = null, bool repetir = false, bool semSla = false, int tickets = 1, bool somentePrimeiro = false, Func<string, HttpResponseMessage?>? interceptar = null) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (request.Method != HttpMethod.Get) throw new Exception("Métricas devem usar somente GET");
         var path = request.RequestUri!.PathAndQuery;
+        if (interceptar?.Invoke(path) is { } resposta) return Task.FromResult(resposta);
         if (path.EndsWith("/profile")) return Resposta(new { id = 42 });
         if (path.Contains("/reporting_events"))
         {
-            if (falhaEventos is { } falha) return Task.FromResult(new HttpResponseMessage(falha));
+            if (falhaEventos is { } falha && (!somentePrimeiro || path.Contains("/123/"))) return Task.FromResult(new HttpResponseMessage(falha));
             object Evento(string nome, double valor, double? util, string data = "2026-11-09T12:00:00Z", int usuario = 42) => new { name = nome, value = valor, value_in_business_hours = util, created_at = data, user_id = usuario };
             return Resposta(new[] { Evento("first_response",60,0), Evento("reply_time",120,null), Evento("conversation_resolved",600,300), Evento("conversation_resolved",1200,600), Evento("reply_time",900,500,usuario:99), Evento("first_response",1000,1000,"2026-11-09T02:59:59Z"), Evento("reply_time",1000,1000,"2026-11-10T03:00:00Z") });
         }
@@ -69,9 +95,9 @@ internal sealed class ApiMetricas(HttpStatusCode? falhaEventos = null, bool repe
         if ((!repetir && !path.Contains("page=1&")) || path.Contains("status=snoozed"))
             return Resposta(new { data = new { payload = Array.Empty<object>() } });
         object sla = new { sla_name = "Política de teste", sla_status = "active_with_misses", sla_first_response_time_threshold = 300, sla_next_response_time_threshold = 600, sla_resolution_time_threshold = 3600, sla_only_during_business_hours = true, sla_frt_due_at = 1794222000 };
-        return Resposta(new { data = new { payload = new[] { new { id = 123, status = path.Contains("status=all") ? "resolved" : "open", created_at = 1794221900,
+        return Resposta(new { data = new { payload = Enumerable.Range(0, tickets).Select(indice => new { id = 123 + indice, status = path.Contains("status=all") ? "resolved" : "open", created_at = 1794221900,
             meta = new { sender = new { name = "Contato de teste", additional_attributes = new { company_name = "Empresa oficial" } }, assignee = new { id = 42 } },
-            applied_sla = semSla ? null : sla, sla_events = new[] { new { event_type = "frt", created_at = 1794222500 } } } } } });
+            applied_sla = semSla ? null : sla, sla_events = new[] { new { event_type = "frt", created_at = 1794222500 } } }).ToArray() } });
     }
     private static Task<HttpResponseMessage> Resposta(object valor) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(valor), Encoding.UTF8, "application/json") });
 }

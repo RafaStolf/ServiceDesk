@@ -34,6 +34,8 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         InitializeComponent();
+        NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Required;
+        Unloaded += (_, _) => { _relogio.Stop(); _sincronizador.Stop(); _aviso.Stop(); };
         if (Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1"
             && !CriarPreviaExportacao("Cabeçalho\r\nMensagem final").Text.Contains("Mensagem final"))
             throw new InvalidOperationException("A prévia truncou o histórico.");
@@ -50,8 +52,15 @@ public sealed partial class MainPage : Page
     private async void Page_Loaded(object sender, RoutedEventArgs e)
     {
         AplicarPreferenciasInterface();
+        _relogio.Start();
+        CarregarConfiguracaoAtualizacao();
         if (Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1") ValidarFiltros();
         await AtualizarAsync();
+    }
+    private void MetricasButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_sincronizando)
+            Frame.Navigate(typeof(MetricasPage), new OpcoesMetricas(RequestedTheme, CorDestaque(), (Style)Resources["FiltroStyle"]));
     }
     private async void AtualizarButton_Click(object sender, RoutedEventArgs e) => await AtualizarAsync();
 
@@ -59,7 +68,7 @@ public sealed partial class MainPage : Page
     {
         if (_sincronizando) return;
         _sincronizando = true;
-        AtualizarButton.IsEnabled = false;
+        AtualizarButton.IsEnabled = MetricasButton.IsEnabled = false;
         SincronizacaoText.Text = "Atualizando sua fila…";
         try
         {
@@ -76,7 +85,7 @@ public sealed partial class MainPage : Page
             SincronizacaoText.Text = "Atualização indisponível · a fila anterior pode estar desatualizada";
             MostrarAviso("Não foi possível atualizar", ex.Message, InfoBarSeverity.Error);
         }
-        finally { AtualizarButton.IsEnabled = true; _sincronizando = false; }
+        finally { AtualizarButton.IsEnabled = MetricasButton.IsEnabled = true; _sincronizando = false; }
     }
 
     private void MostrarAviso(string titulo, string mensagem, InfoBarSeverity severidade)

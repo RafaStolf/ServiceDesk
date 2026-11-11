@@ -13,7 +13,7 @@ public sealed record PoliticaSla(string Nome, string Estado, double? PrimeiraRes
     };
 }
 public sealed record TicketMetricas(long Id, string Contato, string Empresa, string Status, IReadOnlyList<EventoMetrica> Eventos,
-    PoliticaSla? Sla, IReadOnlyList<OcorrenciaSla> Ocorrencias, string? Aviso);
+    PoliticaSla? Sla, IReadOnlyList<OcorrenciaSla> Ocorrencias, string? Aviso, bool PeriodoConfirmado = true);
 public sealed record ResultadoMetricas(IReadOnlyList<TicketMetricas> Tickets, IReadOnlyList<string> Avisos, bool Parcial, DateTimeOffset ConsultadoEm);
 public sealed record IndicadorMetrica(double? MediaSegundos, int Quantidade);
 public sealed record ResumoMetricas(IndicadorMetrica PrimeiraResposta, IndicadorMetrica RespostasSeguintes, IndicadorMetrica Resolucao)

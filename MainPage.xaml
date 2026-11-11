@@ -53,6 +53,7 @@
                 <TextBlock x:Name="SincronizacaoText" Text="Preparando sua fila…" TextWrapping="Wrap" Opacity="0.7" />
             </StackPanel>
             <CommandBar Grid.Column="1" DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" Background="Transparent">
+                <AppBarButton x:Name="MetricasButton" Icon="FourBars" Label="Métricas" ToolTipService.ToolTip="Métricas e SLA" Click="MetricasButton_Click" />
                 <AppBarButton Icon="Setting" Label="Configurações" ToolTipService.ToolTip="Configurações" Click="ConfiguracoesButton_Click" />
                 <AppBarButton x:Name="AtualizarButton" Icon="Refresh" Label="Atualizar" ToolTipService.ToolTip="Atualizar fila" Click="AtualizarButton_Click" />
             </CommandBar>
