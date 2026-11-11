@@ -31,10 +31,9 @@ using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN
 {
     var conversas = await sync.SincronizarAsync(CancellationToken.None);
     var conversa = conversas.Single();
-    Verificar(conversa.UltimaInteracaoMinhaEm == DateTimeOffset.FromUnixTimeSeconds(1794340000), "sincronização usa a última mensagem pública do agente");
+    Verificar(conversa.UltimaInteracaoAgenteEm == DateTimeOffset.FromUnixTimeSeconds(1794340000), "sincronização usa a última mensagem pública do agente");
     Verificar(conversa.UltimaMensagemClienteEm == DateTimeOffset.FromUnixTimeSeconds(1794340010), "sincronização usa a última mensagem do contato");
     Verificar(conversa.UltimaMensagemPublicaEm == DateTimeOffset.FromUnixTimeSeconds(1794340050), "relógio de mensagem pública não é confundido com resposta humana");
-    Verificar(conversa.Assunto == "Sem prévia de mensagem pública", "nota privada não é usada como prévia pública");
     var exportacao = await sync.ExportarAtendimentoAsync(conversa, CancellationToken.None);
     Verificar(exportacao.Texto.Contains("Resposta pública") && exportacao.Texto.Contains("Mensagem do contato")
         && !exportacao.Texto.Contains("NOTA-PRIVADA-EXCLUIR") && !exportacao.Texto.Contains("EVENTO-EXCLUIR"), "exportação mantém mensagens públicas e exclui notas/eventos");
@@ -42,22 +41,47 @@ using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN
 using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada([], true))))
 {
     var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
-    Verificar(conversa.UltimaMensagemPublicaEm is null && conversa.UltimaInteracaoMinhaEm is null, "conversa vazia com last_non_activity_message=null sincroniza");
-    Verificar(conversa.ReferenciaInteracao == conversa.CriadoEm, "evento last_activity_at não substitui uma mensagem pública ausente");
+    Verificar(conversa.UltimaMensagemPublicaEm is null && conversa.UltimaInteracaoAgenteEm is null, "conversa vazia com last_non_activity_message=null sincroniza");
+    Verificar(conversa.ReferenciaInteracao == DateTimeOffset.MaxValue, "criação e last_activity_at não substituem última interação desconhecida");
+    conversa.AtualizarTempo(DateTimeOffset.UtcNow);
+    Verificar(conversa.TempoUltimaInteracaoAgente == "Última interação não identificada", "card não inventa duração para interação desconhecida");
 }
 using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada(mensagens, false, true))))
 {
     var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
-    Verificar(conversa.UltimaInteracaoMinhaEm == DateTimeOffset.FromUnixTimeSeconds(1794340000)
+    Verificar(conversa.UltimaInteracaoAgenteEm == DateTimeOffset.FromUnixTimeSeconds(1794340000)
         && conversa.UltimaMensagemClienteEm == DateTimeOffset.FromUnixTimeSeconds(1794340010), "página recente só com notas/eventos não impede buscar respostas na página anterior");
 }
+using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 999, 1), new HttpClient(new ApiSimulada(mensagens, false))))
+{
+    var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
+    Verificar(conversa.AgenteAtribuidoId == 42 && conversa.UltimaInteracaoAgenteEm == DateTimeOffset.FromUnixTimeSeconds(1794340000), "agente atribuído no Chatwoot prevalece sobre ID legado configurado");
+    Verificar(conversa.Empresa == "Empresa de teste", "empresa do contato é usada quando ausente na conversa");
+    conversa.AtualizarTempo(DateTimeOffset.FromUnixTimeSeconds(1794340300));
+    Verificar(conversa.TempoUltimaInteracaoAgente == "há 5min", "card calcula o tempo da interação do agente atribuído");
+}
+using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada(mensagens, false, agenteId: null))))
+{
+    var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
+    Verificar(conversa.UltimaInteracaoAgenteEm is null, "ausência do agente atribuído não é substituída pelo usuário da configuração");
+}
+var preferenciasDir = Path.Combine(Path.GetTempPath(), "ServiceDesk-Interface-Test-" + Guid.NewGuid().ToString("N"));
+try
+{
+    var servico = new PreferenciasInterfaceService(preferenciasDir);
+    Verificar(servico.Carregar() == new PreferenciasInterface(), "instalação sem preferências usa padrão");
+    var escolhidas = new PreferenciasInterface { Tema = "Escuro", Cor = "Verde", NotificacoesSistema = false, SomNotificacoes = false };
+    servico.Salvar(escolhidas);
+    Verificar(new PreferenciasInterfaceService(preferenciasDir).Carregar() == escolhidas, "tema, cor e notificações persistem ao reabrir");
+}
+finally { if (Directory.Exists(preferenciasDir)) Directory.Delete(preferenciasDir, true); }
 var aberta = new AtendimentoMonitorado { Status = "open", AdiadoAte = DateTimeOffset.UtcNow.AddDays(1) };
 var adiada = new AtendimentoMonitorado { Status = "snoozed", AdiadoAte = null };
 Verificar(!aberta.EstaAdiado && aberta.SituacaoText == "Aberta", "status oficial prevalece sobre data residual de adiamento");
 Verificar(adiada.EstaAdiado && adiada.SituacaoText == "Adiada até a próxima resposta", "snoozed sem data representa adiamento até resposta");
 Console.WriteLine("Contrato Chatwoot validado com dados sintéticos; nenhum servidor real foi consultado.");
 
-sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = false) : HttpMessageHandler
+sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = false, long? agenteId = 42) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -73,7 +97,7 @@ sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = fal
         }
         else if (caminho.Contains("status=open") && caminho.Contains("page=1&"))
         {
-            object conversa = new { id = 19622, meta = new { sender = new { name = "Contato de teste" } }, status = "open", created_at = 1794330000,
+            object conversa = new { id = 19622, meta = new { sender = new { name = "Contato de teste", custom_attributes = new { empresa = "Empresa de teste" } }, assignee_type = "User", assignee = agenteId is { } idAgente ? (object)new { id = idAgente } : null }, status = "open", created_at = 1794330000,
                 last_activity_at = 1794399999, last_non_activity_message = vazia ? (object?)null : mensagens.First(x => x.GetProperty("id").GetInt32() == 4) };
             json = JsonSerializer.Serialize(new { data = new { payload = new[] { conversa } } });
         }

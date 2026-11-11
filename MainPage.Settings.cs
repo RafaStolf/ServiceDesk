@@ -17,15 +17,20 @@ public sealed partial class MainPage
         var chave = new PasswordBox { Header = "Chave da API", Password = Valor("chatwoot.api-access-token"), PasswordRevealMode = PasswordRevealMode.Hidden };
         var mostrar = new ToggleSwitch { Header = "Mostrar chave da API" };
         mostrar.Toggled += (_, _) => chave.PasswordRevealMode = mostrar.IsOn ? PasswordRevealMode.Visible : PasswordRevealMode.Hidden;
-        var usuario = new TextBox { Header = "ID do agente (usuário)", Text = Valor("chatwoot.user-id") };
         var inbox = new TextBox { Header = "ID da caixa de entrada", Text = Valor("chatwoot.inbox-id") };
         var iniciarWindows = new ToggleSwitch { Header = "Iniciar com o Windows", IsOn = InicializacaoWindowsService.IniciarComWindows };
         var segundoPlano = new ToggleSwitch { Header = "Continuar em segundo plano ao fechar a janela", IsOn = InicializacaoWindowsService.ManterEmSegundoPlano };
         var instrucaoGeral = new TextBlock { Text = "Ao entrar no Windows, o ServiceDesk inicia junto ao relógio. Clique no ícone para abrir. Use o menu do ícone → Sair para encerrar completamente.", TextWrapping = TextWrapping.Wrap };
         var ativa = new ToggleSwitch { Header = "Atualizar atendimentos automaticamente", IsOn = _atualizacaoAutomaticaAtiva };
         var intervalo = new NumberBox { Header = "Intervalo de atualização (minutos)", Minimum = 1, Maximum = 120, Value = _intervaloAtualizacaoMinutos, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline };
-        var notificacoes = new ToggleSwitch { Header = "Alertar conversas sem mensagem pública", IsOn = _notificacoesAtivas };
+        var notificacoes = new ToggleSwitch { Header = "Ativar alertas de última interação", IsOn = _notificacoesAtivas };
         var limite = new NumberBox { Header = "Alertar após quantos minutos", Minimum = 1, Maximum = 1440, Value = _limiteNotificacaoMinutos, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline };
+        var tema = new ComboBox { Header = "Tema", ItemsSource = new[] { "Sistema", "Claro", "Escuro" }, SelectedItem = _preferencias.Tema, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var cor = new ComboBox { Header = "Cor de destaque", ItemsSource = new[] { "Azul", "Verde", "Roxo", "Laranja", "Vermelho" }, SelectedItem = _preferencias.Cor, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var sistema = new ToggleSwitch { Header = "Notificações do Windows", IsOn = _preferencias.NotificacoesSistema };
+        var som = new ToggleSwitch { Header = "Som nas notificações do Windows", IsOn = _preferencias.SomNotificacoes, IsEnabled = sistema.IsOn };
+        sistema.Toggled += (_, _) => som.IsEnabled = sistema.IsOn;
+        var explicacaoAlertas = new TextBlock { Text = "O limite abaixo considera a última interação identificada do agente atribuído. É um alerta local de inatividade, não uma meta de SLA.", TextWrapping = TextWrapping.Wrap };
         var status = new TextBlock { Text = $"Versão instalada: {AtualizacaoAplicativoService.VersaoAtual}", TextWrapping = TextWrapping.Wrap };
         var verificar = new Button { Content = "Verificar atualizações" };
         var atualizar = new Button { Content = "Atualizar", IsEnabled = false };
@@ -38,10 +43,12 @@ public sealed partial class MainPage
             return painel;
         }
         PivotItem Aba(string nome, StackPanel painel) => new() { Header = nome, Content = new ScrollViewer { Content = painel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
-        var abas = new Pivot { Width = 480, Height = 400 };
+        var abas = new Pivot { Width = Math.Clamp(ActualWidth - 80, 260, 520), Height = Math.Clamp(ActualHeight - 180, 240, 500) };
         abas.Items.Add(Aba("Geral", Painel(iniciarWindows, segundoPlano, instrucaoGeral)));
-        abas.Items.Add(Aba("Chatwoot", Painel(url, conta, chave, mostrar, usuario, inbox)));
-        abas.Items.Add(Aba("Atendimentos", Painel(ativa, intervalo, notificacoes, limite)));
+        abas.Items.Add(Aba("Chatwoot", Painel(url, conta, chave, mostrar, inbox)));
+        abas.Items.Add(Aba("Fila", Painel(ativa, intervalo)));
+        abas.Items.Add(Aba("Aparência", Painel(tema, cor)));
+        abas.Items.Add(Aba("Alertas", Painel(notificacoes, limite, sistema, som, explicacaoAlertas)));
         abas.Items.Add(Aba("Versão", Painel(status, verificar, atualizar, progresso, informacao)));
         var erro = new TextBlock { TextWrapping = TextWrapping.Wrap };
         var dialogo = new ContentDialog { XamlRoot = XamlRoot, Title = "Configurações", Content = Painel(abas, erro), PrimaryButtonText = "Salvar", CloseButtonText = "Fechar" };
@@ -79,11 +86,11 @@ public sealed partial class MainPage
         };
         dialogo.PrimaryButtonClick += (_, args) =>
         {
-            var temChatwoot = new[] { url.Text, conta.Text, chave.Password, usuario.Text, inbox.Text }.Any(x => !string.IsNullOrWhiteSpace(x));
+            var temChatwoot = new[] { url.Text, conta.Text, chave.Password, inbox.Text }.Any(x => !string.IsNullOrWhiteSpace(x));
             if (temChatwoot && (!Uri.TryCreate(url.Text.Trim(), UriKind.Absolute, out var endereco) || endereco.Scheme != "https" || !string.IsNullOrEmpty(endereco.UserInfo)
                 || string.IsNullOrWhiteSpace(chave.Password) || !long.TryParse(conta.Text, out var contaId) || contaId <= 0
-                || !long.TryParse(usuario.Text, out var usuarioId) || usuarioId <= 0 || !long.TryParse(inbox.Text, out var inboxId) || inboxId <= 0))
-            { erro.Text = "Informe endereço HTTPS, chave da API e IDs positivos da conta, agente e caixa de entrada."; args.Cancel = true; return; }
+                || !long.TryParse(inbox.Text, out var inboxId) || inboxId <= 0))
+            { erro.Text = "Informe endereço HTTPS, chave da API e IDs positivos da conta e caixa de entrada."; args.Cancel = true; return; }
             if (double.IsNaN(intervalo.Value) || double.IsNaN(limite.Value))
             { erro.Text = "Informe os intervalos em minutos."; args.Cancel = true; return; }
             try
@@ -92,14 +99,16 @@ public sealed partial class MainPage
                 if (temChatwoot) ConfiguracaoLocal.SalvarPropriedades(new Dictionary<string, string>
                 {
                     ["chatwoot.base-url"] = url.Text.Trim().TrimEnd('/'), ["chatwoot.account-id"] = conta.Text.Trim(),
-                    ["chatwoot.api-access-token"] = chave.Password, ["chatwoot.user-id"] = usuario.Text.Trim(), ["chatwoot.inbox-id"] = inbox.Text.Trim()
+                    ["chatwoot.api-access-token"] = chave.Password, ["chatwoot.inbox-id"] = inbox.Text.Trim()
                 });
+                _preferenciasService.Salvar(new PreferenciasInterface { Tema = tema.SelectedItem as string ?? "Sistema", Cor = cor.SelectedItem as string ?? "Azul", NotificacoesSistema = sistema.IsOn, SomNotificacoes = som.IsOn });
                 _configuracaoAtualizacao.Salvar(new ConfiguracaoAtualizacao(ativa.IsOn, Math.Clamp((int)Math.Round(intervalo.Value), 1, 120), notificacoes.IsOn, Math.Clamp((int)Math.Round(limite.Value), 1, 1440)));
             }
             catch (Exception ex) { erro.Text = $"Não foi possível salvar: {ex.Message}"; args.Cancel = true; }
         };
         if (await dialogo.ShowAsync() == ContentDialogResult.Primary)
         {
+            AplicarPreferenciasInterface();
             CarregarConfiguracaoAtualizacao();
             await AtualizarAsync();
         }

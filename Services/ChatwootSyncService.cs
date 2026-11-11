@@ -23,7 +23,6 @@ public sealed class ChatwootSyncService : IDisposable
 
     public async Task<IReadOnlyList<AtendimentoMonitorado>> SincronizarAsync(CancellationToken cancellationToken)
     {
-        var usuarioId = _configuracao.UsuarioId ?? await BuscarIdUsuarioAsync(cancellationToken);
         var conversas = (await BuscarConversasAsync("open", cancellationToken))
             .Concat(await BuscarConversasAsync("snoozed", cancellationToken))
             .GroupBy(conversa => conversa.GetProperty("id").GetInt64())
@@ -34,7 +33,7 @@ public sealed class ChatwootSyncService : IDisposable
         var tarefas = conversas.Select(async conversa =>
         {
             await limite.WaitAsync(cancellationToken);
-            try { return await ConverterConversaAsync(conversa, usuarioId, cancellationToken); }
+            try { return await ConverterConversaAsync(conversa, cancellationToken); }
             finally { limite.Release(); }
         });
 
@@ -65,7 +64,6 @@ public sealed class ChatwootSyncService : IDisposable
         texto.AppendLine();
         texto.AppendLine($"Contato: {atendimento.Cliente}");
         texto.AppendLine($"Empresa: {atendimento.Empresa}");
-        texto.AppendLine($"Ticket externo: {atendimento.Ticket}");
         texto.AppendLine($"Situação: {atendimento.SituacaoText}");
         texto.AppendLine($"Criação: {atendimento.CriadoEm:O}");
         texto.AppendLine($"Exportado em: {DateTimeOffset.Now:O}");
@@ -105,12 +103,6 @@ public sealed class ChatwootSyncService : IDisposable
         return new ExportacaoAtendimento(texto.ToString(), arquivos);
     }
 
-    private async Task<long> BuscarIdUsuarioAsync(CancellationToken cancellationToken)
-    {
-        using var documento = await ObterJsonAsync("api/v1/profile", cancellationToken);
-        return documento.RootElement.GetProperty("id").GetInt64();
-    }
-
     private async Task<List<JsonElement>> BuscarConversasAsync(string status, CancellationToken cancellationToken)
     {
         var conversas = new List<JsonElement>();
@@ -126,19 +118,20 @@ public sealed class ChatwootSyncService : IDisposable
         return conversas;
     }
 
-    private async Task<AtendimentoMonitorado> ConverterConversaAsync(JsonElement conversa, long usuarioId, CancellationToken cancellationToken)
+    private async Task<AtendimentoMonitorado> ConverterConversaAsync(JsonElement conversa, CancellationToken cancellationToken)
     {
         var id = conversa.GetProperty("id").GetInt64();
-        var interacoes = await BuscarInteracoesAsync(id, usuarioId, cancellationToken);
+        var agenteId = LerAgenteAtribuido(conversa);
+        var interacoes = await BuscarInteracoesAsync(id, agenteId ?? long.MinValue, cancellationToken);
 
         var remetente = conversa.TryGetProperty("meta", out var meta) && meta.TryGetProperty("sender", out var sender)
             ? LerTexto(sender, "name") : null;
         var telefone = conversa.TryGetProperty("meta", out var metadados) && metadados.TryGetProperty("sender", out var contato)
             ? LerTexto(contato, "phone_number") : null;
         var empresa = LerAtributo(conversa, "empresa", "company");
-        var ticket = LerAtributo(conversa, "ticket", "ticket_id");
-        var assunto = conversa.TryGetProperty("last_non_activity_message", out var ultimaMensagem) && EMensagemPublica(ultimaMensagem)
-            ? LerTexto(ultimaMensagem, "content") : null;
+        if (conversa.TryGetProperty("meta", out var contexto) && contexto.ValueKind == JsonValueKind.Object
+            && contexto.TryGetProperty("sender", out var contatoDados) && contatoDados.ValueKind == JsonValueKind.Object)
+            empresa ??= LerAtributo(contatoDados, "empresa", "company");
         var status = LerTexto(conversa, "status") ?? "open";
 
         return new AtendimentoMonitorado
@@ -147,15 +140,23 @@ public sealed class ChatwootSyncService : IDisposable
             Cliente = string.IsNullOrWhiteSpace(remetente) ? $"Atendimento #{id}" : remetente,
             Telefone = telefone ?? string.Empty,
             Empresa = empresa ?? string.Empty,
-            Ticket = ticket ?? string.Empty,
-            Assunto = string.IsNullOrWhiteSpace(assunto) ? "Sem prévia de mensagem pública" : Resumir(assunto),
             Status = status,
             CriadoEm = LerData(conversa, "created_at") ?? DateTimeOffset.UtcNow,
-            UltimaInteracaoMinhaEm = interacoes.UltimaMinha,
+            AgenteAtribuidoId = agenteId,
+            UltimaInteracaoAgenteEm = interacoes.UltimaMinha,
             UltimaMensagemClienteEm = interacoes.UltimaCliente,
             UltimaMensagemPublicaEm = interacoes.UltimaNoChat,
             AdiadoAte = LerData(conversa, "snoozed_until")
         };
+    }
+
+    private static long? LerAgenteAtribuido(JsonElement conversa)
+    {
+        if (!conversa.TryGetProperty("meta", out var meta) || meta.ValueKind != JsonValueKind.Object
+            || !meta.TryGetProperty("assignee", out var agente) || agente.ValueKind != JsonValueKind.Object) return null;
+        var tipo = LerTexto(meta, "assignee_type") ?? LerTexto(agente, "type");
+        if (tipo is not null && !string.Equals(tipo, "user", StringComparison.OrdinalIgnoreCase)) return null;
+        return agente.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.Number && id.TryGetInt64(out var valor) && valor > 0 ? valor : null;
     }
 
     private static bool EMensagemPublica(JsonElement mensagem) => MensagemChatwoot.Publica(mensagem);
@@ -234,15 +235,13 @@ public sealed class ChatwootSyncService : IDisposable
 
     private static string? LerAtributo(JsonElement conversa, params string[] nomes)
     {
-        if (!conversa.TryGetProperty("custom_attributes", out var atributos) || atributos.ValueKind != JsonValueKind.Object) return null;
+        if (conversa.ValueKind != JsonValueKind.Object || !conversa.TryGetProperty("custom_attributes", out var atributos) || atributos.ValueKind != JsonValueKind.Object) return null;
         foreach (var nome in nomes)
         {
             if (atributos.TryGetProperty(nome, out var valor) && valor.ValueKind == JsonValueKind.String) return valor.GetString();
         }
         return null;
     }
-
-    private static string Resumir(string texto) => texto.Length <= 120 ? texto : texto[..117] + "...";
 
     public void Dispose() => _httpClient.Dispose();
 }

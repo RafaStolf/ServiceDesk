@@ -41,8 +41,8 @@ Name: "desktopicon"; Description: "Criar atalho na área de trabalho"; Flags: un
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{userprograms}\ServiceDesk"; Filename: "{app}\ServiceDesk.exe"; WorkingDir: "{app}"
-Name: "{userdesktop}\ServiceDesk"; Filename: "{app}\ServiceDesk.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{userprograms}\ServiceDesk"; Filename: "{app}\ServiceDesk.exe"; WorkingDir: "{app}"; AppUserModelID: "Centrium.ServiceDesk"
+Name: "{userdesktop}\ServiceDesk"; Filename: "{app}\ServiceDesk.exe"; WorkingDir: "{app}"; AppUserModelID: "Centrium.ServiceDesk"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\ServiceDesk.exe"; Description: "Abrir ServiceDesk"; Flags: nowait postinstall skipifsilent

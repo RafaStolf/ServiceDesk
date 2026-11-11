@@ -1,12 +1,12 @@
 # ServiceDesk
 
-Aplicativo Windows para acompanhar conversas atribuídas ao analista no Chatwoot. Ele prioriza a fila pela última **mensagem pública** da conversa e sinaliza atendimentos sem interação.
+Aplicativo Windows para acompanhar conversas atribuídas ao analista no Chatwoot. Os cards priorizam identificação, empresa e ID do atendimento e mostram o tempo desde a última interação identificada do agente atribuído.
 
 ## O que o aplicativo faz
 
 - Consulta conversas abertas e adiadas atribuídas ao analista no Chatwoot.
-- Permite filtrar por situação e pesquisar cliente, telefone, empresa, ticket externo, mensagem ou ID.
-- Mostra em cada card o tempo desde a criação da conversa e o tempo desde a última mensagem pública.
+- Permite filtrar por situação e pesquisar contato, telefone, empresa ou ID.
+- Mostra contato, empresa, ID, situação e o tempo da última interação do agente atribuído, sem prévia de mensagem ou nome do agente.
 - Ignora notas privadas e eventos do sistema para o cálculo de interação.
 - Exibe alertas locais configuráveis por tempo sem interação.
 - Abre a conversa selecionada diretamente no Chatwoot.
@@ -15,7 +15,7 @@ O ServiceDesk somente lê dados do Chatwoot. Ele não envia mensagens, não alte
 
 ## Configuração inicial
 
-Ao abrir o aplicativo, selecione **Chatwoot** no canto superior direito e informe a chave API pessoal, o ID do usuário e o ID da caixa de entrada. A chave fica oculta por padrão; use **Mostrar chave da API** apenas quando necessário.
+Ao abrir o aplicativo, selecione **Chatwoot** no canto superior direito e informe o endereço, a chave API pessoal, o ID da conta e o ID da caixa de entrada. A chave fica oculta por padrão; use **Mostrar chave da API** apenas quando necessário.
 
 A configuração é salva somente no perfil Windows do usuário, em `%USERPROFILE%\.servicedesk\application.properties`, e não deve ser enviada ao GitHub. Em **Configurações → Atendimentos**, escolha o intervalo de sincronização e o limite de minutos que gera uma notificação.
 
@@ -48,7 +48,7 @@ Cada pessoa deverá configurar sua própria chave API, ID de agente e caixa de e
 
 ## Usar um atendimento no ChatGPT
 
-Selecione um atendimento e clique em **Usar no ChatGPT**. Revise o histórico completo na prévia editável. **Copiar texto** copia o conteúdo; **Salvar arquivo** exporta um arquivo **.md (Markdown)**, pronto para anexar em um chat do projeto Atendimentos.
+No menu **…** do card, escolha **Copiar texto**, **Exportar chat** ou **Abrir no Chatwoot**. Em **Exportar chat**, Revise o histórico completo na prévia editável. **Copiar texto** copia o conteúdo; **Salvar arquivo** exporta um arquivo **.md (Markdown)**, pronto para anexar em um chat do projeto Atendimentos.
 
 O Markdown contém a identificação, situação, datas e mensagens públicas em ordem cronológica, com referências aos anexos. Ele não incorpora os arquivos de imagem, áudio ou vídeo. Para levá-los junto, mantenha marcada a opção de mídias e escolha uma pasta. O aplicativo cria uma subpasta do atendimento com nome como `Atendimento-19656`, contendo `Atendimento-19656.md` e os anexos originais juntos, sem ZIP. No horário de cada mensagem, o histórico informa que foi enviada uma imagem, vídeo ou áudio e inclui o nome/link do arquivo correspondente. Anexe o histórico e as mídias no mesmo chat. Notas privadas e eventos são excluídos.
 
@@ -62,7 +62,7 @@ O instalador usa `%LOCALAPPDATA%\Programs\ServiceDesk`, sem exigir administrador
 
 Como alternativa portátil, baixe **ServiceDesk-win-x64.zip**, extraia todo o conteúdo em uma pasta e abra **ServiceDesk.exe**. A pasta `Assets` do código-fonte contém imagens; os arquivos para download ficam nos anexos da release no GitHub. Não é necessário Visual Studio nem .NET instalado. Feche a versão antiga e atualize seu atalho para o novo executável. O pacote portátil não substitui automaticamente uma instalação MSIX.
 
-Em **Configurações**, a aba **Chatwoot** reúne endereço HTTPS, conta, chave da API, agente e caixa de entrada. A aba **Atendimentos** controla a atualização automática da fila, intervalo e alertas. A aba **Versão** mostra a versão instalada, **Verificar atualizações** e **Atualizar**.
+Em **Configurações**, a aba **Chatwoot** reúne endereço HTTPS, conta, chave da API, agente e caixa de entrada. A aba **Fila** controla a atualização automática e o intervalo. **Aparência** permite escolher tema e cor; **Alertas** controla o limite, as notificações do Windows e o som. A aba **Versão** mostra a versão instalada, **Verificar atualizações** e **Atualizar**.
 
 Ao verificar, o aplicativo consulta as versões públicas no GitHub. Havendo versão nova, **Atualizar** baixa o pacote, verifica SHA-256, fecha o aplicativo, substitui os arquivos e reinicia no mesmo caminho, preservando os atalhos e configurações. Um backup permite restaurar os arquivos anteriores se a substituição ou inicialização falhar. A atualização exige Windows x64 e permissão de escrita na pasta da versão portátil. Uma instalação MSIX precisa migrar para a versão portátil; não é substituída por esse mecanismo. As versões antigas que apenas abrem a página de download precisam atualizar manualmente uma última vez.
 
@@ -82,4 +82,6 @@ A inicialização automática registra somente o executável no perfil do usuár
 
 ## Contrato e nomes do Chatwoot
 
-Consulte [o glossário e os critérios de validação](docs/GLOSSARIO-CHATWOOT.md). O contador mede tempo sem mensagem pública, não tempo de resposta ou SLA. O campo de remetente do endpoint é `sender.type`/`sender.id`.
+Consulte [o glossário e os critérios de validação](docs/GLOSSARIO-CHATWOOT.md). O card mostra a última interação identificada do agente atribuído; esse tempo não é uma meta de SLA. Quando a data é desconhecida, não é substituída pela criação da conversa. O campo de remetente do endpoint é `sender.type`/`sender.id`.
+
+O ícone da Centrium é preservado. As preferências visuais ficam em `%USERPROFILE%\.servicedesk\interface.json`. As notificações não incluem botão ou ação para abrir o Chatwoot. Na versão instalada, o atalho do menu Iniciar registra a identidade das notificações; versões portáteis sem esse registro usam o alerta dentro do aplicativo como alternativa.
