@@ -29,6 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="Tests\**\*.cs" />
     <EmbeddedResource Include="Scripts\Atualizar.ps1" />
   </ItemGroup>
 

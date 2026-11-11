@@ -17,14 +17,14 @@ public sealed partial class MainPage
         var chave = new PasswordBox { Header = "Chave da API", Password = Valor("chatwoot.api-access-token"), PasswordRevealMode = PasswordRevealMode.Hidden };
         var mostrar = new ToggleSwitch { Header = "Mostrar chave da API" };
         mostrar.Toggled += (_, _) => chave.PasswordRevealMode = mostrar.IsOn ? PasswordRevealMode.Visible : PasswordRevealMode.Hidden;
-        var usuario = new TextBox { Header = "ID do usuário", Text = Valor("chatwoot.user-id") };
-        var inbox = new TextBox { Header = "ID do Inbox", Text = Valor("chatwoot.inbox-id") };
+        var usuario = new TextBox { Header = "ID do agente (usuário)", Text = Valor("chatwoot.user-id") };
+        var inbox = new TextBox { Header = "ID da caixa de entrada", Text = Valor("chatwoot.inbox-id") };
         var iniciarWindows = new ToggleSwitch { Header = "Iniciar com o Windows", IsOn = InicializacaoWindowsService.IniciarComWindows };
         var segundoPlano = new ToggleSwitch { Header = "Continuar em segundo plano ao fechar a janela", IsOn = InicializacaoWindowsService.ManterEmSegundoPlano };
         var instrucaoGeral = new TextBlock { Text = "Ao entrar no Windows, o ServiceDesk inicia junto ao relógio. Clique no ícone para abrir. Use o menu do ícone → Sair para encerrar completamente.", TextWrapping = TextWrapping.Wrap };
         var ativa = new ToggleSwitch { Header = "Atualizar atendimentos automaticamente", IsOn = _atualizacaoAutomaticaAtiva };
         var intervalo = new NumberBox { Header = "Intervalo de atualização (minutos)", Minimum = 1, Maximum = 120, Value = _intervaloAtualizacaoMinutos, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline };
-        var notificacoes = new ToggleSwitch { Header = "Alertar atendimentos sem interação", IsOn = _notificacoesAtivas };
+        var notificacoes = new ToggleSwitch { Header = "Alertar conversas sem mensagem pública", IsOn = _notificacoesAtivas };
         var limite = new NumberBox { Header = "Alertar após quantos minutos", Minimum = 1, Maximum = 1440, Value = _limiteNotificacaoMinutos, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline };
         var status = new TextBlock { Text = $"Versão instalada: {AtualizacaoAplicativoService.VersaoAtual}", TextWrapping = TextWrapping.Wrap };
         var verificar = new Button { Content = "Verificar atualizações" };
@@ -83,7 +83,7 @@ public sealed partial class MainPage
             if (temChatwoot && (!Uri.TryCreate(url.Text.Trim(), UriKind.Absolute, out var endereco) || endereco.Scheme != "https" || !string.IsNullOrEmpty(endereco.UserInfo)
                 || string.IsNullOrWhiteSpace(chave.Password) || !long.TryParse(conta.Text, out var contaId) || contaId <= 0
                 || !long.TryParse(usuario.Text, out var usuarioId) || usuarioId <= 0 || !long.TryParse(inbox.Text, out var inboxId) || inboxId <= 0))
-            { erro.Text = "Informe endereço HTTPS, chave da API e IDs positivos da conta, usuário e Inbox."; args.Cancel = true; return; }
+            { erro.Text = "Informe endereço HTTPS, chave da API e IDs positivos da conta, agente e caixa de entrada."; args.Cancel = true; return; }
             if (double.IsNaN(intervalo.Value) || double.IsNaN(limite.Value))
             { erro.Text = "Informe os intervalos em minutos."; args.Cancel = true; return; }
             try

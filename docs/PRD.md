@@ -4,7 +4,7 @@
 
 ## Contexto e objetivo
 
-O analista trabalha a fila atribuída a ele no Chatwoot e precisa priorizar conversas sem mensagem pública. A aplicação deve apresentar, sem executar operações no Chatwoot, o tempo de chat aberto, o tempo desde a última mensagem pública e se a conversa está adiada.
+O analista trabalha a fila atribuída a ele no Chatwoot e precisa priorizar conversas sem mensagem pública. A aplicação deve apresentar, sem executar operações no Chatwoot, o tempo desde a criação da conversa, o tempo desde a última mensagem pública e se a conversa está adiada.
 
 O sucesso é o analista conseguir, ao abrir o ServiceDesk, identificar a fila aberta e os adiados, pesquisar uma conversa e abrir a conversa correspondente no Chatwoot. A atualização é manual ou automática em intervalo configurável.
 
@@ -29,3 +29,7 @@ O sucesso é o analista conseguir, ao abrir o ServiceDesk, identificar a fila ab
 |---|---|
 | Critérios visuais de prioridade além do tempo sem interação. | Define cores, ordenação secundária e possíveis notificações futuras. |
 | Forma de apresentação e edição das pendências locais. | Define a próxima tela e uso das tabelas existentes. |
+
+## Contrato da integração e validação
+
+O [glossário do Chatwoot](GLOSSARIO-CHATWOOT.md) registra os campos oficiais, os requisitos RF-06 a RF-08 e RNF-01 a RNF-03 e os critérios de teste. A diretriz e o fluxo N1 orientarão as regras futuras de resposta, horário e adiamento.

@@ -18,7 +18,7 @@ public sealed class ServicoNotificacoes
             if (_referenciasNotificadas.TryGetValue(atendimento.Id, out var referencia) && referencia == atendimento.ReferenciaInteracao) continue;
             try
             {
-                Exibir("ServiceDesk: atendimento sem interação", $"{atendimento.Cliente} está sem interação há {atendimento.TempoSemInteracaoChat}.");
+                Exibir("ServiceDesk: conversa sem mensagem pública", $"Última mensagem pública de {atendimento.Cliente}: {atendimento.TempoSemMensagemPublica}.");
             }
             catch (Exception)
             {

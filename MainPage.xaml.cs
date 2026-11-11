@@ -169,21 +169,21 @@ public sealed partial class MainPage : Page
         tempo.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         tempo.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var aberto = new StackPanel { Spacing = 1 };
-        aberto.Children.Add(new TextBlock { Text = "CHAT ABERTO", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
-        aberto.Children.Add(new TextBlock { Text = atendimento.TempoChatAberto, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 19 });
+        aberto.Children.Add(new TextBlock { Text = "TEMPO DESDE A CRIAÇÃO", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
+        aberto.Children.Add(new TextBlock { Text = atendimento.TempoDesdeCriacao, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, FontSize = 19 });
         tempo.Children.Add(aberto);
         var atividade = new StackPanel { Spacing = 1 };
-        atividade.Children.Add(new TextBlock { Text = "ÚLTIMA ATIVIDADE", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
-        atividade.Children.Add(new TextBlock { Text = atendimento.TempoSemInteracaoChat, FontWeight = Microsoft.UI.Text.FontWeights.Bold, FontSize = 19 });
+        atividade.Children.Add(new TextBlock { Text = "TEMPO SEM MENSAGEM PÚBLICA", Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
+        atividade.Children.Add(new TextBlock { Text = atendimento.TempoSemMensagemPublica, FontWeight = Microsoft.UI.Text.FontWeights.Bold, FontSize = 19 });
         Grid.SetColumn(atividade, 1);
         tempo.Children.Add(atividade);
         Grid.SetRow(tempo, 1);
         conteudo.Children.Add(tempo);
 
         var detalhes = new StackPanel { Spacing = 3, Opacity = 0.76 };
-        detalhes.Children.Add(new TextBlock { Text = atendimento.UltimaInteracaoChatText });
+        detalhes.Children.Add(new TextBlock { Text = atendimento.UltimaMensagemPublicaText });
         detalhes.Children.Add(new TextBlock { Text = atendimento.UltimaMensagemClienteText });
-        detalhes.Children.Add(new TextBlock { Text = atendimento.MinhaUltimaAcaoText });
+        detalhes.Children.Add(new TextBlock { Text = atendimento.MinhaUltimaMensagemText });
         Grid.SetRow(detalhes, 2);
         conteudo.Children.Add(detalhes);
         card.Child = conteudo;
@@ -249,9 +249,9 @@ public sealed partial class MainPage : Page
         if (novosAlertas.Count == 0) return;
 
         var primeiro = novosAlertas[0];
-        AlertaInteracaoInfo.Title = novosAlertas.Count == 1 ? "Atendimento sem interação" : $"{novosAlertas.Count} atendimentos sem interação";
+        AlertaInteracaoInfo.Title = novosAlertas.Count == 1 ? "Conversa sem mensagem pública" : $"{novosAlertas.Count} conversas sem mensagem pública";
         AlertaInteracaoInfo.Message = novosAlertas.Count == 1
-            ? $"{primeiro.Cliente} está sem interação há {primeiro.TempoSemInteracaoChat}."
+            ? $"Última mensagem pública de {primeiro.Cliente}: {primeiro.TempoSemMensagemPublica}."
             : $"{primeiro.Cliente} e outros atendimentos excederam o limite configurado.";
         AlertaInteracaoInfo.IsOpen = true;
     }
