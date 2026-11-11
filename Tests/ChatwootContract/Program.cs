@@ -85,6 +85,7 @@ var aberta = new AtendimentoMonitorado { Status = "open", AdiadoAte = DateTimeOf
 var adiada = new AtendimentoMonitorado { Status = "snoozed", AdiadoAte = null };
 Verificar(!aberta.EstaAdiado && aberta.SituacaoText == "Aberta", "status oficial prevalece sobre data residual de adiamento");
 Verificar(adiada.EstaAdiado && adiada.SituacaoText == "Adiada até a próxima resposta", "snoozed sem data representa adiamento até resposta");
+await MetricasTests.ExecutarAsync();
 Console.WriteLine("Contrato Chatwoot validado com dados sintéticos; nenhum servidor real foi consultado.");
 
 sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = false, long? agenteId = 42, string? empresaPadrao = null) : HttpMessageHandler
