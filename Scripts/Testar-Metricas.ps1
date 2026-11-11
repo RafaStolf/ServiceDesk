@@ -76,7 +76,7 @@ function Aguardar([string]$nome) {
     for ($i=0; $i -lt 100; $i++) {
         if ($app.HasExited) { throw "Aplicativo encerrou durante teste: $nome" }
         $elemento = Encontrar $nome
-        if ($null -ne $elemento -and $elemento.Current.IsEnabled -and !$elemento.Current.IsOffscreen) { return $elemento }
+        if ($null -ne $elemento -and $elemento.Current.IsEnabled) { return $elemento }
         Start-Sleep -Milliseconds 100
     }
     throw "Controle não encontrado ou desabilitado: $nome"
@@ -84,6 +84,9 @@ function Aguardar([string]$nome) {
 function Clicar([string]$nome) {
     Write-Host "Acionando: $nome"
     $elemento = Aguardar $nome
+    # Controles no ScrollViewer continuam acionáveis por acessibilidade;
+    # o foco solicita sua rolagem para a área visível antes de Invoke.
+    if ($elemento.Current.IsOffscreen) { $elemento.SetFocus() }
     $padrao = $null
     if ($elemento.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$padrao)) {
         try { $padrao.Invoke() }
