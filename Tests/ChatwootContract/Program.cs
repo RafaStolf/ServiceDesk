@@ -45,20 +45,32 @@ using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN
     Verificar(conversa.UltimaMensagemPublicaEm is null && conversa.UltimaInteracaoMinhaEm is null, "conversa vazia com last_non_activity_message=null sincroniza");
     Verificar(conversa.ReferenciaInteracao == conversa.CriadoEm, "evento last_activity_at não substitui uma mensagem pública ausente");
 }
+using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada(mensagens, false, true))))
+{
+    var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
+    Verificar(conversa.UltimaInteracaoMinhaEm == DateTimeOffset.FromUnixTimeSeconds(1794340000)
+        && conversa.UltimaMensagemClienteEm == DateTimeOffset.FromUnixTimeSeconds(1794340010), "página recente só com notas/eventos não impede buscar respostas na página anterior");
+}
 var aberta = new AtendimentoMonitorado { Status = "open", AdiadoAte = DateTimeOffset.UtcNow.AddDays(1) };
 var adiada = new AtendimentoMonitorado { Status = "snoozed", AdiadoAte = null };
 Verificar(!aberta.EstaAdiado && aberta.SituacaoText == "Aberta", "status oficial prevalece sobre data residual de adiamento");
 Verificar(adiada.EstaAdiado && adiada.SituacaoText == "Adiada até a próxima resposta", "snoozed sem data representa adiamento até resposta");
 Console.WriteLine("Contrato Chatwoot validado com dados sintéticos; nenhum servidor real foi consultado.");
 
-sealed class ApiSimulada(JsonElement[] mensagens, bool vazia) : HttpMessageHandler
+sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = false) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         if (request.Method != HttpMethod.Get) throw new InvalidOperationException("Somente GET é permitido no teste.");
         var caminho = request.RequestUri!.PathAndQuery;
         string json;
-        if (caminho.Contains("/messages")) json = JsonSerializer.Serialize(new { payload = caminho.Contains("before=") ? [] : mensagens });
+        if (caminho.Contains("/messages"))
+        {
+            var pagina = paginar
+                ? mensagens.Where(x => caminho.Contains("before=") ? x.GetProperty("id").GetInt32() <= 3 : x.GetProperty("id").GetInt32() is 4 or 5).ToArray()
+                : caminho.Contains("before=") ? [] : mensagens;
+            json = JsonSerializer.Serialize(new { payload = pagina });
+        }
         else if (caminho.Contains("status=open") && caminho.Contains("page=1&"))
         {
             object conversa = new { id = 19622, meta = new { sender = new { name = "Contato de teste" } }, status = "open", created_at = 1794330000,
