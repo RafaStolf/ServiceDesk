@@ -6,6 +6,7 @@ Aplicativo Windows para acompanhar conversas atribuídas ao analista no Chatwoot
 
 - Consulta conversas abertas e adiadas atribuídas ao analista no Chatwoot.
 - Permite filtrar a fila por Em aberto, Adiados e Todos.
+- Em **Resolvidos**, consulte **Meus tickets** ou **Caixa de entrada** e use **Carregar mais** para ver outras páginas. A primeira opção inclui atribuições atuais e vínculos identificados no histórico, como atribuições anteriores e resoluções feitas por você. A segunda mostra os resolvidos acessíveis na caixa configurada. Use **Buscar tickets** para filtrar as páginas carregadas por número, contato ou empresa.
 - Mostra contato, empresa, ID, situação e o tempo da última interação do agente atribuído, sem prévia de mensagem ou nome do agente.
 - Ignora notas privadas e eventos do sistema para o cálculo de interação.
 - Exibe alertas locais configuráveis por tempo sem interação.
@@ -17,7 +18,7 @@ O ServiceDesk somente lê dados do Chatwoot. Ele não envia mensagens, não alte
 
 Ao abrir o aplicativo, abra **Configurações → Chatwoot** e informe o endereço, a chave API pessoal, o ID da conta e o ID da caixa de entrada. A chave fica oculta por padrão; use **Mostrar chave da API** apenas quando necessário.
 
-A configuração é salva somente no perfil Windows do usuário, em `%USERPROFILE%\.servicedesk\application.properties`, e não deve ser enviada ao GitHub. Em **Configurações → Fila**, escolha o intervalo de sincronização. Em **Alertas**, ajuste o limite de minutos e as notificações.
+A configuração é salva somente no perfil Windows do usuário, em `%USERPROFILE%\.servicedesk\application.properties`, e não deve ser enviada ao GitHub. Em **Configurações → Fila**, o modo padrão atualiza a fila ao receber eventos do Chatwoot. Você pode desativar o tempo real e escolher um intervalo fixo de 1 a 120 minutos. Em **Alertas**, ajuste o limite de minutos e as notificações.
 
 ## Requisitos para desenvolvimento
 
@@ -60,11 +61,11 @@ O instalador usa `%LOCALAPPDATA%\Programs\ServiceDesk`, sem exigir administrador
 
 Como alternativa portátil, baixe **ServiceDesk-win-x64.zip**, extraia todo o conteúdo em uma pasta e abra **ServiceDesk.exe**. A pasta `Assets` do código-fonte contém imagens; os arquivos para download ficam nos anexos da release no GitHub. Não é necessário Visual Studio nem .NET instalado. Feche a versão antiga e atualize seu atalho para o novo executável. O pacote portátil não substitui automaticamente uma instalação MSIX.
 
-Em **Configurações**, a aba **Chatwoot** reúne endereço HTTPS, conta, chave da API, agente e caixa de entrada. A aba **Fila** controla a atualização automática e o intervalo. **Aparência** permite escolher tema e cor; **Alertas** controla o limite, as notificações do Windows e o som. A aba **Sobre** mostra a versão instalada, **Verificar atualizações** e **Atualizar**.
+Em **Configurações**, a aba **Chatwoot** reúne endereço HTTPS, conta, chave da API, agente e caixa de entrada. A aba **Fila** permite usar tempo real, intervalo fixo ou atualização manual. Em tempo real, uma consulta de contingência roda a cada minuto enquanto o WebSocket estiver indisponível. **Aparência** permite escolher tema e cor; **Alertas** controla o limite, as notificações do Windows e o som. A aba **Sobre** mostra a versão instalada, **Verificar atualizações** e **Atualizar**.
 
 Ao verificar, o aplicativo consulta as versões públicas no GitHub. Havendo versão nova, **Atualizar** baixa o pacote, verifica SHA-256, fecha o aplicativo, substitui os arquivos e reinicia no mesmo caminho, preservando os atalhos e configurações. Um backup permite restaurar os arquivos anteriores se a substituição ou inicialização falhar. A atualização exige Windows x64 e permissão de escrita na pasta da versão portátil. Uma instalação MSIX precisa migrar para a versão portátil; não é substituída por esse mecanismo. As versões antigas que apenas abrem a página de download precisam atualizar manualmente uma última vez.
 
-As configurações em `%USERPROFILE%\.servicedesk` são preservadas. Na versão portátil, notificações do Windows podem não estar disponíveis; os alertas dentro do aplicativo continuam funcionando.
+As configurações em `%USERPROFILE%\.servicedesk` são preservadas. Em **Configurações → Alertas → Testar notificação do Windows**, o aplicativo verifica se o Windows registrou o aviso na Central de Notificações.
 
 O workflow `.github/workflows/windows-release.yml` compila em Windows, gera o instalador com Inno Setup 6 e testa instalação, abertura, reinstalação e desinstalação. Após um push na `main`, publica o instalador, o ZIP portátil e os respectivos SHA-256. O ZIP permanece disponível para o atualizador interno. Nenhum arquivo de configuração local é incluído no pacote.
 
@@ -82,7 +83,9 @@ A inicialização automática registra somente o executável no perfil do usuár
 
 Consulte [o glossário e os critérios de validação](docs/GLOSSARIO-CHATWOOT.md). O card mostra a última interação identificada do agente atribuído; esse tempo não é uma meta de SLA. Quando a data é desconhecida, não é substituída pela criação da conversa. O campo de remetente do endpoint é `sender.type`/`sender.id`.
 
-O ícone da Centrium é preservado. As preferências visuais ficam em `%USERPROFILE%\.servicedesk\interface.json`. As notificações não incluem botão ou ação para abrir o Chatwoot. Na versão instalada, o atalho do menu Iniciar registra a identidade das notificações; versões portáteis sem esse registro usam o alerta dentro do aplicativo como alternativa.
+As preferências visuais ficam em `%USERPROFILE%\.servicedesk\interface.json`. Os avisos de inatividade contam desde a última interação do agente. Quando o agente ainda não respondeu, contam desde a última mensagem do cliente. Os avisos internos são exibidos por oito segundos por ticket. Os envios ao Windows são espaçados quando vários tickets atingem o limite juntos. Enquanto o aviso estiver na Central de Notificações e o ticket continuar elegível, o tempo é atualizado sem repetir o banner ou o som. Os cards continuam mostrando o tempo decorrido desde a última interação durante e após o aviso.
+
+O histórico da aba **Resolvidos** depende dos registros disponíveis no Chatwoot. A atribuição atual é identificada pelo ID do agente. Quando o Chatwoot registra atribuições anteriores ou resoluções apenas como texto, o aplicativo reconhece os eventos em português e inglês usando o nome atual do perfil.
 
 ## Métricas e SLA
 
@@ -108,6 +111,6 @@ O card exibe o e-mail cadastrado no contato (`meta.sender.email`), abaixo da emp
 
 ## Diagnóstico de notificações do Windows
 
-Em **Configurações → Alertas**, ative **Notificações do Windows** e use **Testar notificação do Windows**. O teste independe de tickets e do limite de minutos. O envio aceito pelo Windows não garante um banner: confira também a central de notificações e o modo Não incomodar. Permissões desabilitadas são informadas na tela; falhas assíncronas de entrega são registradas em `%LOCALAPPDATA%\ServiceDesk\notificacoes.log`, sem conteúdo das conversas.
+Em **Configurações → Alertas**, ative **Notificações do Windows** e use **Testar notificação do Windows**. O teste independe de tickets e do limite de minutos. O teste verifica o registro do aviso na Central de Notificações. O modo Não incomodar pode ocultar o banner. O aplicativo informa permissões desabilitadas e registra falhas detectadas no envio em `%LOCALAPPDATA%\ServiceDesk\notificacoes.log`, sem conteúdo das conversas.
 
 Os alertas automáticos atuais exigem ticket não adiado com resposta pública anterior identificada do agente atribuído. Tickets ainda sem essa resposta não disparam alerta por mensagem recebida. Uma falha síncrona no envio ao Windows permite nova tentativa após cinco minutos, sem repetir o alerta interno. O teste e a entrega real precisam ser validados no Windows; a identidade pelo atalho do menu Iniciar depende da instalação.

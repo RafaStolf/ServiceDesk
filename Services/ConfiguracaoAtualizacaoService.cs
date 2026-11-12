@@ -2,7 +2,7 @@ using Windows.Storage;
 
 namespace ServiceDesk.Services;
 
-public sealed record ConfiguracaoAtualizacao(bool Ativa, int IntervaloMinutos, bool NotificacoesAtivas, int LimiteNotificacaoMinutos)
+public sealed record ConfiguracaoAtualizacao(bool Ativa, int IntervaloMinutos, bool NotificacoesAtivas, int LimiteNotificacaoMinutos, bool TempoReal = true)
 {
     public static readonly ConfiguracaoAtualizacao Padrao = new(true, 5, true, 10);
 }
@@ -11,6 +11,7 @@ public sealed record ConfiguracaoAtualizacao(bool Ativa, int IntervaloMinutos, b
 public sealed class ConfiguracaoAtualizacaoService
 {
     private const string AtualizacaoAtivaKey = "atualizacao_automatica_ativa";
+    private const string TempoRealKey = "atualizacao_tempo_real";
     private const string IntervaloKey = "intervalo_atualizacao_minutos";
     private const string NotificacoesAtivasKey = "notificacoes_ativas";
     private const string LimiteNotificacaoKey = "limite_notificacao_minutos";
@@ -40,7 +41,9 @@ public sealed class ConfiguracaoAtualizacaoService
             : ConfiguracaoAtualizacao.Padrao.NotificacoesAtivas;
         var limite = valores.TryGetValue(LimiteNotificacaoKey, out var valorLimite) && valorLimite is int limiteConfigurado
             ? limiteConfigurado : ConfiguracaoAtualizacao.Padrao.LimiteNotificacaoMinutos;
-        return new ConfiguracaoAtualizacao(ativa, Math.Clamp(minutos, 1, 120), notificacoesAtivas, Math.Clamp(limite, 1, 1440));
+        var tempoReal = !valores.TryGetValue(TempoRealKey, out var valorTempoReal)
+            || valorTempoReal is not bool modoTempoReal || modoTempoReal;
+        return new ConfiguracaoAtualizacao(ativa, Math.Clamp(minutos, 1, 120), notificacoesAtivas, Math.Clamp(limite, 1, 1440), tempoReal);
     }
 
     public void Salvar(ConfiguracaoAtualizacao configuracao)
@@ -55,6 +58,7 @@ public sealed class ConfiguracaoAtualizacaoService
             return;
         }
         valores[AtualizacaoAtivaKey] = configuracao.Ativa;
+        valores[TempoRealKey] = configuracao.TempoReal;
         valores[IntervaloKey] = Math.Clamp(configuracao.IntervaloMinutos, 1, 120);
         valores[NotificacoesAtivasKey] = configuracao.NotificacoesAtivas;
         valores[LimiteNotificacaoKey] = Math.Clamp(configuracao.LimiteNotificacaoMinutos, 1, 1440);

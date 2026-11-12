@@ -51,24 +51,48 @@
             <StackPanel Spacing="2">
                 <TextBlock Text="ServiceDesk" Style="{StaticResource TitleTextBlockStyle}" />
                 <TextBlock x:Name="SincronizacaoText" Text="Preparando sua fila…" TextWrapping="Wrap" Opacity="0.7" />
+                <TextBlock x:Name="ResumoResolvidos" TextWrapping="Wrap" Opacity="0.7" AutomationProperties.LiveSetting="Polite" Visibility="Collapsed" />
             </StackPanel>
             <CommandBar Grid.Column="1" DefaultLabelPosition="Collapsed" IsDynamicOverflowEnabled="True" Background="Transparent">
                 <AppBarButton x:Name="MetricasButton" Icon="FourBars" Label="Métricas" ToolTipService.ToolTip="Métricas e SLA" Click="MetricasButton_Click" />
                 <AppBarButton Icon="Setting" Label="Configurações" ToolTipService.ToolTip="Configurações" Click="ConfiguracoesButton_Click" />
-                <AppBarButton x:Name="AtualizarButton" Icon="Refresh" Label="Atualizar" ToolTipService.ToolTip="Atualizar fila" Click="AtualizarButton_Click" />
+                <AppBarButton x:Name="AtualizarButton" Icon="Refresh" Label="Atualizar" ToolTipService.ToolTip="Atualizar tickets" Click="AtualizarButton_Click" />
             </CommandBar>
         </Grid>
-        <StackPanel Grid.Row="1" Spacing="10">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <ToggleButton Style="{StaticResource FiltroStyle}" x:Name="AbertosFiltro" Content="Em aberto (0)" Tag="Em aberto" Click="Filtro_Click" IsChecked="True" />
-                <ToggleButton Style="{StaticResource FiltroStyle}" x:Name="AdiadosFiltro" Content="Adiados (0)" Tag="Adiado" Click="Filtro_Click" />
-                <ToggleButton Style="{StaticResource FiltroStyle}" x:Name="TodosFiltro" Content="Todos (0)" Tag="Todos" Click="Filtro_Click" />
-            </StackPanel>
-        </StackPanel>
+        <Grid x:Name="NavegacaoTickets" Grid.Row="1" ColumnSpacing="12" SizeChanged="NavegacaoTickets_SizeChanged">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <ScrollViewer x:Name="AbasTickets" Grid.ColumnSpan="2" VerticalAlignment="Center" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <ToggleButton Style="{StaticResource FiltroStyle}" x:Name="AbertosFiltro" Content="Em aberto (0)" Tag="Em aberto" Click="Filtro_Click" IsChecked="True" />
+                    <ToggleButton Style="{StaticResource FiltroStyle}" x:Name="AdiadosFiltro" Content="Adiados (0)" Tag="Adiado" Click="Filtro_Click" />
+                    <ToggleButton Style="{StaticResource FiltroStyle}" x:Name="TodosFiltro" Content="Todos (0)" Tag="Todos" Click="Filtro_Click" />
+                    <ToggleButton Style="{StaticResource FiltroStyle}" x:Name="ResolvidosFiltro" Content="Resolvidos" Tag="Resolvidos" Click="Filtro_Click" />
+                </StackPanel>
+            </ScrollViewer>
+            <ScrollViewer x:Name="BarraResolvidos" Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" HorizontalAlignment="Right" VerticalAlignment="Center"
+                          HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled" Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBox x:Name="BuscaResolvidos" Width="152" PlaceholderText="Buscar tickets" AutomationProperties.Name="Buscar tickets resolvidos"
+                             ToolTipService.ToolTip="Busque por número, contato ou empresa nos tickets carregados." TextChanged="BuscaResolvidos_TextChanged" />
+                    <ComboBox x:Name="EscopoResolvidos" SelectedIndex="0" AutomationProperties.Name="Escopo dos tickets resolvidos" SelectionChanged="EscopoResolvidos_SelectionChanged">
+                        <ComboBoxItem Content="Meus tickets" />
+                        <ComboBoxItem Content="Caixa de entrada" />
+                    </ComboBox>
+                    <Button x:Name="MaisResolvidosButton" Content="Carregar mais" Click="MaisResolvidosButton_Click" Visibility="Collapsed" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
         <InfoBar x:Name="StatusInfo" Grid.Row="2" IsOpen="False" IsClosable="True" />
         <ScrollViewer x:Name="ListaScroll" Grid.Row="3" VerticalScrollMode="Enabled" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled" SizeChanged="Lista_SizeChanged">
             <Grid x:Name="AtendimentosList" HorizontalAlignment="Stretch" ColumnSpacing="12" RowSpacing="12" />
         </ScrollViewer>
-        <InfoBar x:Name="AlertaInteracaoInfo" Grid.Row="4" IsOpen="False" IsClosable="True" Severity="Warning" Title="Tempo desde a última interação" />
+        <InfoBar x:Name="AlertaInteracaoInfo" Grid.Row="4" IsOpen="False" IsClosable="True" Severity="Warning" Title="Tempo desde a última interação" AutomationProperties.AutomationId="AlertaInatividade" />
     </Grid>
 </Page>

@@ -1,4 +1,6 @@
+using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using ServiceDesk.Models;
 
@@ -41,23 +43,83 @@ public sealed class ChatwootSyncService : IDisposable
         return resultado.OrderBy(item => item.ReferenciaInteracao).ToList();
     }
 
+    internal async Task<(long UsuarioId, string Token)> ObterPerfilTempoRealAsync(CancellationToken cancellationToken)
+    {
+        using var perfil = await ObterJsonAsync("api/v1/profile", cancellationToken).ConfigureAwait(false);
+        var raiz = perfil.RootElement;
+        if (raiz.ValueKind != JsonValueKind.Object || !raiz.TryGetProperty("id", out var id)
+            || id.ValueKind != JsonValueKind.Number || !id.TryGetInt64(out var usuarioId) || usuarioId <= 0
+            || LerTexto(raiz, "pubsub_token") is not { Length: > 0 } token)
+            throw new InvalidOperationException("O perfil do Chatwoot não oferece acesso em tempo real.");
+        return (usuarioId, token);
+    }
+
+    internal sealed record PaginaResolvidos(IReadOnlyList<AtendimentoMonitorado> Atendimentos, bool TemMais, int HistoricosIndisponiveis);
+
+    internal async Task<PaginaResolvidos> BuscarResolvidosAsync(bool somenteMeus, int pagina, CancellationToken cancellationToken)
+    {
+        if (_configuracao.InboxId is not > 0)
+            throw new InvalidOperationException("Informe o ID da caixa de entrada em Configurações → Chatwoot.");
+
+        var conversas = await BuscarPaginaDeConversasAsync("resolved", "all", pagina, cancellationToken);
+        var resolvidos = conversas.Where(item => LerTexto(item, "status") == "resolved");
+        if (!somenteMeus || conversas.Count == 0)
+            return new PaginaResolvidos(resolvidos.Select(ConverterConversa).ToList(), conversas.Count > 0, 0);
+
+        using var perfil = await ObterJsonAsync("api/v1/profile", cancellationToken);
+        if (!perfil.RootElement.TryGetProperty("id", out var id) || !id.TryGetInt64(out var usuarioId)
+            || usuarioId <= 0 || LerTexto(perfil.RootElement, "name") is not { Length: > 0 } nome)
+            throw new InvalidOperationException("Não foi possível identificar o usuário da chave da API no Chatwoot.");
+
+        var meus = new List<AtendimentoMonitorado>();
+        var indisponiveis = 0;
+        foreach (var conversa in resolvidos)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var atendimento = ConverterConversa(conversa);
+            try
+            {
+                if (atendimento.AgenteAtribuidoId == usuarioId ||
+                    await TemVinculoNoHistoricoAsync(atendimento.Id, nome, cancellationToken))
+                    meus.Add(atendimento);
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+            {
+                indisponiveis++;
+            }
+        }
+        return new PaginaResolvidos(meus, true, indisponiveis);
+    }
+
+    private async Task<bool> TemVinculoNoHistoricoAsync(long id, string nome, CancellationToken cancellationToken)
+    {
+        // No Chatwoot, esses eventos de atividade podem trazer apenas o nome no texto localizado.
+        var resolucoesEAtribuicoesProprias = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            $"Conversa foi marcada como resolvida por {nome}",
+            $"Conversation was marked resolved by {nome}",
+            $"{nome} atribuiu a si mesmo essa conversa",
+            $"{nome} auto-atribuída esta conversa",
+            $"{nome} self-assigned this conversation"
+        };
+        var atribuicaoPt = $"Atribuído a {nome} por ";
+        var atribuicaoEn = $"Assigned to {nome} by ";
+        await foreach (var mensagem in LerHistoricoAsync(id, cancellationToken))
+        {
+            if (MensagemChatwoot.Tipo(mensagem) != 2 || LerTexto(mensagem, "content") is not { } texto) continue;
+            if (resolucoesEAtribuicoesProprias.Contains(texto)
+                || texto.StartsWith(atribuicaoPt, StringComparison.OrdinalIgnoreCase)
+                || texto.StartsWith(atribuicaoEn, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
     public async Task<ExportacaoAtendimento> ExportarAtendimentoAsync(AtendimentoMonitorado atendimento, CancellationToken cancellationToken)
     {
         var mensagens = new Dictionary<long, JsonElement>();
-        long? before = null;
-        while (true)
-        {
-            var sufixo = before is null ? "" : $"?before={before}";
-            using var documento = await ObterJsonAsync($"api/v1/accounts/{_configuracao.ContaId}/conversations/{atendimento.Id}/messages{sufixo}", cancellationToken);
-            var pagina = documento.RootElement.GetProperty("payload").EnumerateArray().ToList();
-            if (pagina.Count == 0) break;
-            var menorId = pagina.Min(item => item.GetProperty("id").GetInt64());
-            if (before is not null && menorId >= before.Value)
-                throw new InvalidOperationException("Não foi possível obter o histórico completo: a paginação não avançou.");
-            foreach (var mensagem in pagina)
-                mensagens.TryAdd(mensagem.GetProperty("id").GetInt64(), mensagem.Clone());
-            before = menorId;
-        }
+        await foreach (var mensagem in LerHistoricoAsync(atendimento.Id, cancellationToken))
+            mensagens.TryAdd(mensagem.GetProperty("id").GetInt64(), mensagem.Clone());
         var arquivos = new List<AnexoAtendimento>();
         var texto = new System.Text.StringBuilder();
         texto.AppendLine($"# Ticket #{atendimento.Id}");
@@ -103,27 +165,57 @@ public sealed class ChatwootSyncService : IDisposable
         return new ExportacaoAtendimento(texto.ToString(), arquivos);
     }
 
+    private async IAsyncEnumerable<JsonElement> LerHistoricoAsync(long conversaId, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        long? before = null;
+        while (true)
+        {
+            var sufixo = before is null ? "" : $"?before={before}";
+            using var documento = await ObterJsonAsync($"api/v1/accounts/{_configuracao.ContaId}/conversations/{conversaId}/messages{sufixo}", cancellationToken);
+            var pagina = documento.RootElement.GetProperty("payload").EnumerateArray().ToList();
+            if (pagina.Count == 0) yield break;
+            var menorId = pagina.Min(item => item.GetProperty("id").GetInt64());
+            if (before is not null && menorId >= before.Value)
+                throw new InvalidOperationException("Não foi possível obter o histórico completo: a paginação não avançou.");
+            foreach (var mensagem in pagina) yield return mensagem;
+            before = menorId;
+        }
+    }
+
     private async Task<List<JsonElement>> BuscarConversasAsync(string status, CancellationToken cancellationToken)
     {
         var conversas = new List<JsonElement>();
         for (var pagina = 1; pagina <= 100; pagina++)
         {
-            var inbox = _configuracao.InboxId is { } inboxId ? $"&inbox_id={inboxId}" : string.Empty;
-            var caminho = $"api/v1/accounts/{_configuracao.ContaId}/conversations?assignee_type=me&status={status}&page={pagina}{inbox}";
-            using var documento = await ObterJsonAsync(caminho, cancellationToken);
-            var itens = documento.RootElement.GetProperty("data").GetProperty("payload").EnumerateArray().Select(item => item.Clone()).ToList();
+            var itens = await BuscarPaginaDeConversasAsync(status, "me", pagina, cancellationToken);
             conversas.AddRange(itens);
             if (itens.Count == 0) break;
         }
         return conversas;
     }
 
+    private async Task<List<JsonElement>> BuscarPaginaDeConversasAsync(string status, string escopo, int pagina, CancellationToken cancellationToken)
+    {
+        var inbox = _configuracao.InboxId is { } inboxId ? $"&inbox_id={inboxId}" : string.Empty;
+        var caminho = $"api/v1/accounts/{_configuracao.ContaId}/conversations?assignee_type={escopo}&status={status}&page={pagina}{inbox}";
+        using var documento = await ObterJsonAsync(caminho, cancellationToken);
+        return documento.RootElement.GetProperty("data").GetProperty("payload").EnumerateArray()
+            .Select(item => item.Clone()).ToList();
+    }
+
     private async Task<AtendimentoMonitorado> ConverterConversaAsync(JsonElement conversa, CancellationToken cancellationToken)
     {
-        var id = conversa.GetProperty("id").GetInt64();
-        var agenteId = LerAgenteAtribuido(conversa);
-        var interacoes = await BuscarInteracoesAsync(id, agenteId ?? long.MinValue, cancellationToken);
+        var atendimento = ConverterConversa(conversa);
+        var interacoes = await BuscarInteracoesAsync(atendimento.Id, atendimento.AgenteAtribuidoId ?? long.MinValue, cancellationToken);
+        atendimento.UltimaInteracaoAgenteEm = interacoes.UltimaMinha;
+        atendimento.UltimaMensagemClienteEm = interacoes.UltimaCliente;
+        atendimento.UltimaMensagemPublicaEm = interacoes.UltimaNoChat;
+        return atendimento;
+    }
 
+    private static AtendimentoMonitorado ConverterConversa(JsonElement conversa)
+    {
+        var id = conversa.GetProperty("id").GetInt64();
         var remetente = conversa.TryGetProperty("meta", out var meta) && meta.TryGetProperty("sender", out var sender)
             ? LerTexto(sender, "name") : null;
         var telefone = conversa.TryGetProperty("meta", out var metadados) && metadados.TryGetProperty("sender", out var contato)
@@ -150,10 +242,8 @@ public sealed class ChatwootSyncService : IDisposable
             Empresa = empresa ?? string.Empty,
             Status = status,
             CriadoEm = LerData(conversa, "created_at") ?? DateTimeOffset.UtcNow,
-            AgenteAtribuidoId = agenteId,
-            UltimaInteracaoAgenteEm = interacoes.UltimaMinha,
-            UltimaMensagemClienteEm = interacoes.UltimaCliente,
-            UltimaMensagemPublicaEm = interacoes.UltimaNoChat,
+            AgenteAtribuidoId = LerAgenteAtribuido(conversa),
+            UltimaAtividadeEm = LerData(conversa, "last_activity_at"),
             AdiadoAte = LerData(conversa, "snoozed_until")
         };
     }
@@ -217,7 +307,7 @@ public sealed class ChatwootSyncService : IDisposable
     {
         using var resposta = await _httpClient.GetAsync(caminho, cancellationToken);
         if (!resposta.IsSuccessStatusCode)
-            throw new HttpRequestException($"O Chatwoot retornou {(int)resposta.StatusCode} ({resposta.ReasonPhrase}).");
+            throw new HttpRequestException($"O Chatwoot retornou {(int)resposta.StatusCode} ({resposta.ReasonPhrase}).", null, resposta.StatusCode);
         await using var stream = await resposta.Content.ReadAsStreamAsync(cancellationToken);
         return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
     }
