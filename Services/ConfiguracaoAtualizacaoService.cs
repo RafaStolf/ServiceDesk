@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Windows.Storage;
 
 namespace ServiceDesk.Services;
@@ -73,8 +74,16 @@ public sealed class ConfiguracaoAtualizacaoService
         LimiteNotificacaoMinutos = Math.Clamp(valor.LimiteNotificacaoMinutos, 1, 1440)
     };
 
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    private static extern int GetCurrentPackageFullName(ref uint comprimento, IntPtr nome);
+
     private static IDictionary<string, object>? TentarValoresDoPacote()
     {
+        const int bufferInsuficiente = 122;
+        uint comprimento = 0;
+        // Sem identidade MSIX, as preferências ficam no perfil local.
+        if (GetCurrentPackageFullName(ref comprimento, IntPtr.Zero) != bufferInsuficiente) return null;
+
         try { return ApplicationData.Current.LocalSettings.Values; }
         catch (InvalidOperationException) { return null; }
         catch (System.Runtime.InteropServices.COMException) { return null; }

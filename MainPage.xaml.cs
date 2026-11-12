@@ -184,17 +184,18 @@ public sealed partial class MainPage : Page
 
     private async Task ObservarChatwootAsync(ConfiguracaoChatwoot configuracao, CancellationTokenSource sessao)
     {
+        var dispatcher = DispatcherQueue;
         using (sessao)
         {
             await new ChatwootTempoReal(configuracao).AcompanharAsync(
-                conectado => DispatcherQueue.TryEnqueue(() =>
+                conectado => dispatcher.TryEnqueue(() =>
                 {
                     if (_tempoReal != sessao) return;
                     _conectadoTempoReal = conectado;
                     AtualizarIntervaloDeSincronizacao();
                     if (conectado) AgendarAtualizacaoPorEvento();
                 }),
-                alteracao => DispatcherQueue.TryEnqueue(() =>
+                alteracao => dispatcher.TryEnqueue(() =>
                 {
                     if (_tempoReal != sessao) return;
                     if (configuracao.InboxId is null || alteracao.CaixaId is null
