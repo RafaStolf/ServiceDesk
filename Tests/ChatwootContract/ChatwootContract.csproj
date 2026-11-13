@@ -10,7 +10,9 @@
     <Compile Include="../../Services/MetricasChatwootService.cs" Link="MetricasChatwootService.cs" />
     <Compile Include="../../Services/PreferenciasInterfaceService.cs" Link="PreferenciasInterfaceService.cs" />
     <Compile Include="../../Models/AtendimentoMonitorado.cs" Link="AtendimentoMonitorado.cs" />
+    <Compile Include="../../Services/FilaAlertasAtendimento.cs" Link="FilaAlertasAtendimento.cs" />
     <Compile Include="../../Services/ChatwootSyncService.cs" Link="ChatwootSyncService.cs" />
+    <Compile Include="../../Services/ChatwootTempoReal.cs" Link="ChatwootTempoReal.cs" />
     <Compile Include="../../Services/MensagemChatwoot.cs" Link="MensagemChatwoot.cs" />
     <Compile Include="../../Services/ConfiguracaoChatwoot.cs" Link="ConfiguracaoChatwoot.cs" />
     <Compile Include="../../Services/ConfiguracaoLocal.cs" Link="ConfiguracaoLocal.cs" />

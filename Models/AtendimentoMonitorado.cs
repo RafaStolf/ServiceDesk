@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 
 namespace ServiceDesk.Models;
@@ -17,12 +18,40 @@ public sealed class AtendimentoMonitorado : INotifyPropertyChanged
     public DateTimeOffset? UltimaInteracaoAgenteEm { get; set; }
     public DateTimeOffset? UltimaMensagemClienteEm { get; set; }
     public DateTimeOffset? UltimaMensagemPublicaEm { get; set; }
+    public DateTimeOffset? UltimaAtividadeEm { get; set; }
     public DateTimeOffset? AdiadoAte { get; set; }
 
     public long? AgenteAtribuidoId { get; set; }
 
+    internal bool CorrespondeBusca(string termo)
+    {
+        termo = termo.Trim();
+        if (termo.Length == 0) return true;
+
+        var numero = Id.ToString(CultureInfo.InvariantCulture);
+        if (termo[0] == '#') return numero.Equals(termo[1..], StringComparison.Ordinal);
+
+        const CompareOptions opcoes = CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace;
+        var comparador = CultureInfo.InvariantCulture.CompareInfo;
+        return numero.Contains(termo, StringComparison.Ordinal)
+            || comparador.IndexOf(Cliente, termo, opcoes) >= 0
+            || comparador.IndexOf(Empresa, termo, opcoes) >= 0;
+    }
+
     /// <summary>Ordena pela última interação conhecida do agente; valores desconhecidos ficam ao final.</summary>
     public DateTimeOffset ReferenciaInteracao => DataValida(UltimaInteracaoAgenteEm) ?? DateTimeOffset.MaxValue;
+    internal DateTimeOffset? ReferenciaAlerta =>
+        DataValida(UltimaInteracaoAgenteEm) ?? DataValida(UltimaMensagemClienteEm);
+
+    internal string DescreverAlerta(DateTimeOffset agora)
+    {
+        if (DataValida(UltimaInteracaoAgenteEm) is { } agente)
+            return $"Última interação do agente {FormatarDuracao(agora - agente)}";
+        if (DataValida(UltimaMensagemClienteEm) is { } cliente)
+            return $"Cliente aguarda resposta {FormatarDuracao(agora - cliente)}";
+        return "Última interação não identificada";
+    }
+
     public bool EstaAdiado => string.Equals(Status, "snoozed", StringComparison.OrdinalIgnoreCase);
     public string SituacaoText => Status.ToLowerInvariant() switch
     {

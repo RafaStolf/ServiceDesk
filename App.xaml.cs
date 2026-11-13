@@ -11,6 +11,7 @@ public partial class App : Application
     private RegisteredWaitHandle? _espera;
     private bool _saindo;
     internal Window MainWindow => _window ?? throw new InvalidOperationException("Janela indisponível.");
+    internal ServicoNotificacoes Notificacoes { get; } = new();
 
     public App()
     {
@@ -41,7 +42,9 @@ public partial class App : Application
         try { InicializacaoWindowsService.Inicializar(); }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
         { /* As configurações permitem tentar habilitar novamente sem impedir a abertura. */ }
+        ServicoNotificacoes.UsarIdentidadeDaInstalacao();
         _window = new MainWindow();
+        Notificacoes.Registrar(() => _window.DispatcherQueue.TryEnqueue(() => _window.Mostrar()));
         _espera = ThreadPool.RegisterWaitForSingleObject(_abrir, (_, _) => _window.DispatcherQueue.TryEnqueue(() => _window.Mostrar()), null, Timeout.Infinite, false);
         _window.Closed += (_, _) => Sair();
         _window.Activate();
@@ -54,6 +57,8 @@ public partial class App : Application
     {
         if (_saindo) return;
         _saindo = true;
+        try { Notificacoes.Dispose(); }
+        catch (System.Runtime.InteropServices.COMException) { }
         _window?.Encerrar();
         _espera?.Unregister(null);
         _abrir?.Dispose();

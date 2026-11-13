@@ -118,6 +118,16 @@ var adiada = new AtendimentoMonitorado { Status = "snoozed", AdiadoAte = null };
 Verificar(!aberta.EstaAdiado && aberta.SituacaoText == "Aberta", "status oficial prevalece sobre data residual de adiamento");
 Verificar(adiada.EstaAdiado && adiada.SituacaoText == "Adiada até a próxima resposta", "snoozed sem data representa adiamento até resposta");
 await MetricasTests.ExecutarAsync();
+await ResolvidosTests.ExecutarAsync();
+AlertasTests.Executar();
+Verificar(ChatwootTempoReal.LerAlteracao(Mensagem("""{"message":{"event":"message.created","data":{"account_id":1,"inbox_id":12,"conversation_id":345}}}"""), 1)
+    == new ChatwootTempoReal.Alteracao(12, 345), "mensagem do Chatwoot agenda atualização no escopo do ticket");
+Verificar(ChatwootTempoReal.LerAlteracao(Mensagem("""{"message":{"event":"assignee.changed","data":{"account_id":1,"inbox_id":42,"id":345}}}"""), 1)
+    == new ChatwootTempoReal.Alteracao(42, 345), "mudança de atribuição identifica a conversa e a caixa");
+Verificar(ChatwootTempoReal.LerAlteracao(Mensagem("""{"message":{"event":"conversation.status_changed","data":{"account_id":99,"inbox_id":12,"id":345}}}"""), 1) is null,
+    "evento de outra conta é ignorado");
+Verificar(ChatwootTempoReal.LerAlteracao(Mensagem("""{"message":{"event":"conversation.typing_on","data":{"account_id":1,"inbox_id":12,"id":345}}}"""), 1) is null,
+    "digitação não dispara a consulta da fila");
 Console.WriteLine("Contrato Chatwoot validado com dados sintéticos; nenhum servidor real foi consultado.");
 
 sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = false, long? agenteId = 42, string? empresaPadrao = null, string? emailContato = null) : HttpMessageHandler

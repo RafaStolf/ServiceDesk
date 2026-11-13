@@ -12,19 +12,25 @@ namespace ServiceDesk;
 
 public sealed partial class MainPage : Page
 {
-    private readonly DispatcherTimer _relogio = new() { Interval = TimeSpan.FromSeconds(30) };
+    private readonly DispatcherTimer _relogio = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _sincronizador = new();
+    private readonly DispatcherTimer _atualizacaoPorEvento = new() { Interval = TimeSpan.FromSeconds(2) };
+    private CancellationTokenSource? _tempoReal;
+    private ConfiguracaoChatwoot? _configuracaoTempoReal;
+    private bool _conectadoTempoReal;
+    private bool _atualizacaoPendente;
     private readonly DispatcherTimer _aviso = new() { Interval = TimeSpan.FromSeconds(5) };
     private readonly MonitoramentoService _monitoramento = new();
     private readonly ConfiguracaoAtualizacaoService _configuracaoAtualizacao = new();
     private readonly PreferenciasInterfaceService _preferenciasService = new();
-    private readonly ServicoNotificacoes _notificacoes = new();
+    private readonly FilaAlertasAtendimento _alertas = new();
     private PreferenciasInterface _preferencias = new();
     private IReadOnlyList<AtendimentoMonitorado> _atendimentos = [];
     private bool _sincronizando;
     private bool _exportando;
     private bool _interfaceIniciada;
     private bool _atualizacaoAutomaticaAtiva;
+    private bool _preferirTempoReal;
     private int _intervaloAtualizacaoMinutos;
     private bool _notificacoesAtivas;
     private int _limiteNotificacaoMinutos;
@@ -37,15 +43,23 @@ public sealed partial class MainPage : Page
     {
         InitializeComponent();
         NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Required;
-        Unloaded += (_, _) => { _relogio.Stop(); _sincronizador.Stop(); _aviso.Stop(); };
+        Unloaded += (_, _) =>
+        {
+            _aviso.Stop();
+            CancelarConsultaResolvidos();
+        };
         _relogio.Tick += (_, _) => AtualizarTemposExibidos();
-        _relogio.Start();
         _sincronizador.Tick += async (_, _) => await AtualizarAsync();
+        _atualizacaoPorEvento.Tick += async (_, _) =>
+        {
+            _atualizacaoPorEvento.Stop();
+            if (_sincronizando) _atualizacaoPendente = true;
+            else await AtualizarAsync();
+        };
         _aviso.Tick += (_, _) => { _aviso.Stop(); StatusInfo.IsOpen = false; };
         _interfaceIniciada = true;
         AplicarPreferenciasInterface();
         ActualThemeChanged += (_, _) => AtualizarFiltrosVisuais();
-        CarregarConfiguracaoAtualizacao();
     }
 
     private async void Page_Loaded(object sender, RoutedEventArgs e)
@@ -54,7 +68,8 @@ public sealed partial class MainPage : Page
         _relogio.Start();
         CarregarConfiguracaoAtualizacao();
         if (Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1") ValidarFiltros();
-        await AtualizarAsync();
+        await Task.WhenAll(AtualizarAsync(),
+            ExibindoResolvidos && _proximaPaginaResolvidos == 1 ? CarregarResolvidosAsync() : Task.CompletedTask);
     }
     private void MetricasButton_Click(object sender, RoutedEventArgs e)
     {
@@ -72,31 +87,54 @@ public sealed partial class MainPage : Page
             MostrarAviso("Não foi possível abrir as métricas", ex.Message, InfoBarSeverity.Error);
         }
     }
-    private async void AtualizarButton_Click(object sender, RoutedEventArgs e) => await AtualizarAsync();
+    private async void AtualizarButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ExibindoResolvidos)
+        {
+            ReiniciarResolvidos();
+            await CarregarResolvidosAsync();
+        }
+        else await AtualizarAsync();
+    }
 
     private async Task AtualizarAsync()
     {
         if (_sincronizando) return;
         _sincronizando = true;
-        AtualizarButton.IsEnabled = MetricasButton.IsEnabled = false;
+        MetricasButton.IsEnabled = false;
+        AtualizarDisponibilidadeDaAtualizacao();
         SincronizacaoText.Text = "Atualizando sua fila…";
         try
         {
             var resultado = await _monitoramento.SincronizarAsync(CancellationToken.None);
             _atendimentos = resultado.Atendimentos;
-            AplicarFiltros();
-            NotificarAtendimentosPendentes();
+            if (ExibindoResolvidos) AtualizarFiltrosVisuais();
+            else AplicarFiltros();
             _aviso.Stop();
-            StatusInfo.IsOpen = false;
+            if (!ExibindoResolvidos) StatusInfo.IsOpen = false;
+            AtualizarTemposExibidos();
             SincronizacaoText.Text = $"Atualizado às {DateTime.Now:HH:mm} · {_atendimentos.Count} ticket(s)";
         }
         catch (Exception ex)
         {
             SincronizacaoText.Text = "Atualização indisponível · a fila anterior pode estar desatualizada";
-            MostrarAviso("Não foi possível atualizar", ex.Message, InfoBarSeverity.Error);
+            if (!ExibindoResolvidos) MostrarAviso("Não foi possível atualizar", ex.Message, InfoBarSeverity.Error);
         }
-        finally { AtualizarButton.IsEnabled = MetricasButton.IsEnabled = true; _sincronizando = false; }
+        finally
+        {
+            _sincronizando = false;
+            MetricasButton.IsEnabled = true;
+            AtualizarDisponibilidadeDaAtualizacao();
+            if (_atualizacaoPendente)
+            {
+                _atualizacaoPendente = false;
+                AgendarAtualizacaoPorEvento();
+            }
+        }
     }
+
+    private void AtualizarDisponibilidadeDaAtualizacao() =>
+        AtualizarButton.IsEnabled = ExibindoResolvidos ? _consultaResolvidos is null : !_sincronizando;
 
     private void MostrarAviso(string titulo, string mensagem, InfoBarSeverity severidade)
     {
@@ -112,15 +150,84 @@ public sealed partial class MainPage : Page
     {
         var configuracao = _configuracaoAtualizacao.Carregar();
         _atualizacaoAutomaticaAtiva = configuracao.Ativa;
+        _preferirTempoReal = configuracao.TempoReal;
         _intervaloAtualizacaoMinutos = configuracao.IntervaloMinutos;
         _notificacoesAtivas = configuracao.NotificacoesAtivas;
         _limiteNotificacaoMinutos = configuracao.LimiteNotificacaoMinutos;
-        _sincronizador.Stop();
-        if (_atualizacaoAutomaticaAtiva)
+        ConfigurarTempoReal();
+        AtualizarIntervaloDeSincronizacao();
+    }
+
+    private void ConfigurarTempoReal()
+    {
+        ConfiguracaoChatwoot? configuracao = null;
+        if (_atualizacaoAutomaticaAtiva && _preferirTempoReal)
         {
-            _sincronizador.Interval = TimeSpan.FromMinutes(_intervaloAtualizacaoMinutos);
-            _sincronizador.Start();
+            try { configuracao = CarregadorConfiguracaoChatwoot.Carregar(); }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException) { }
         }
+        if (_configuracaoTempoReal == configuracao) return;
+
+        var anterior = _tempoReal;
+        _tempoReal = null;
+        anterior?.Cancel();
+        _atualizacaoPorEvento.Stop();
+        _atualizacaoPendente = false;
+        _conectadoTempoReal = false;
+        _configuracaoTempoReal = configuracao;
+        if (configuracao is null) return;
+
+        var sessao = new CancellationTokenSource();
+        _tempoReal = sessao;
+        _ = ObservarChatwootAsync(configuracao, sessao);
+    }
+
+    private async Task ObservarChatwootAsync(ConfiguracaoChatwoot configuracao, CancellationTokenSource sessao)
+    {
+        var dispatcher = DispatcherQueue;
+        using (sessao)
+        {
+            await new ChatwootTempoReal(configuracao).AcompanharAsync(
+                conectado => dispatcher.TryEnqueue(() =>
+                {
+                    if (_tempoReal != sessao) return;
+                    _conectadoTempoReal = conectado;
+                    AtualizarIntervaloDeSincronizacao();
+                    if (conectado) AgendarAtualizacaoPorEvento();
+                }),
+                alteracao => dispatcher.TryEnqueue(() =>
+                {
+                    if (_tempoReal != sessao) return;
+                    if (configuracao.InboxId is null || alteracao.CaixaId is null
+                        || alteracao.CaixaId == configuracao.InboxId
+                        || _atendimentos.Any(ticket => ticket.Id == alteracao.ConversaId))
+                        AgendarAtualizacaoPorEvento();
+                }),
+                sessao.Token);
+        }
+    }
+
+    private void AgendarAtualizacaoPorEvento()
+    {
+        if (_tempoReal is not null && !_atualizacaoPorEvento.IsEnabled)
+            _atualizacaoPorEvento.Start();
+    }
+
+    private void AtualizarIntervaloDeSincronizacao()
+    {
+        if (!_atualizacaoAutomaticaAtiva)
+        {
+            _sincronizador.Stop();
+            return;
+        }
+
+        var minutos = _preferirTempoReal ? (_conectadoTempoReal ? 5 : 1) : _intervaloAtualizacaoMinutos;
+        var intervalo = TimeSpan.FromMinutes(minutos);
+        if (_sincronizador.IsEnabled && _sincronizador.Interval == intervalo) return;
+
+        _sincronizador.Stop();
+        _sincronizador.Interval = intervalo;
+        _sincronizador.Start();
     }
 
     private void AplicarPreferenciasInterface()
@@ -147,7 +254,7 @@ public sealed partial class MainPage : Page
         AbertosFiltro.Content = $"Em aberto ({_atendimentos.Count(x => !x.EstaAdiado)})";
         AdiadosFiltro.Content = $"Adiados ({_atendimentos.Count(x => x.EstaAdiado)})";
         TodosFiltro.Content = $"Todos ({_atendimentos.Count})";
-        foreach (var filtro in new[] { AbertosFiltro, AdiadosFiltro, TodosFiltro })
+        foreach (var filtro in new[] { AbertosFiltro, AdiadosFiltro, TodosFiltro, ResolvidosFiltro })
         {
             var ativo = filtro.Tag as string == _filtroStatus;
             filtro.IsChecked = ativo;
@@ -159,7 +266,7 @@ public sealed partial class MainPage : Page
     private void ValidarFiltros()
     {
         var anterior = _filtroStatus;
-        foreach (var filtro in new[] { AbertosFiltro, AdiadosFiltro, TodosFiltro })
+        foreach (var filtro in new[] { AbertosFiltro, AdiadosFiltro, TodosFiltro, ResolvidosFiltro })
         {
             _filtroStatus = (string)filtro.Tag;
             AtualizarFiltrosVisuais();
@@ -195,14 +302,14 @@ public sealed partial class MainPage : Page
         for (var i = 0; i < visiveis.Count; i++)
         {
             var atendimento = visiveis[i];
-            atendimento.AtualizarTempo(DateTimeOffset.Now);
+            if (!ExibindoResolvidos) atendimento.AtualizarTempo(DateTimeOffset.Now);
             if (i % _colunas == 0) AtendimentosList.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var card = CriarCardAtendimento(atendimento);
             Grid.SetRow(card, i / _colunas);
             Grid.SetColumn(card, i % _colunas);
             AtendimentosList.Children.Add(card);
         }
-        if (visiveis.Count == 0)
+        if (visiveis.Count == 0 && !ExibindoResolvidos)
         {
             var vazio = new TextBlock { Text = "Nenhum ticket corresponde aos filtros.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 24, 0, 24) };
             Grid.SetColumnSpan(vazio, _colunas);
@@ -255,11 +362,20 @@ public sealed partial class MainPage : Page
         linhaEmail.Children.Add(email);
         conteudo.Children.Add(linhaEmail);
         conteudo.Children.Add(new Border { Height = 1, Background = new SolidColorBrush(Windows.UI.Color.FromArgb(50, 128, 128, 128)), Margin = new Thickness(0, 4, 0, 2) });
-        conteudo.Children.Add(new TextBlock { Text = "Última interação", Opacity = 0.7 });
-        var tempo = new TextBlock { FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
-        tempo.SetBinding(TextBlock.TextProperty, new Binding { Source = atendimento, Path = new PropertyPath(nameof(AtendimentoMonitorado.TempoUltimaInteracao)), Mode = BindingMode.OneWay });
-        conteudo.Children.Add(tempo);
-        if (_filtroStatus == "Todos" || atendimento.EstaAdiado)
+        if (ExibindoResolvidos)
+        {
+            conteudo.Children.Add(new TextBlock { Text = atendimento.SituacaoText, TextWrapping = TextWrapping.Wrap });
+            if (atendimento.UltimaAtividadeEm is { } atividade)
+                conteudo.Children.Add(new TextBlock { Text = $"Última atividade em {atividade.LocalDateTime:dd/MM/yyyy HH:mm}", Opacity = 0.7, TextWrapping = TextWrapping.Wrap });
+        }
+        else
+        {
+            conteudo.Children.Add(new TextBlock { Text = "Última interação", Opacity = 0.7 });
+            var tempo = new TextBlock { FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
+            tempo.SetBinding(TextBlock.TextProperty, new Binding { Source = atendimento, Path = new PropertyPath(nameof(AtendimentoMonitorado.TempoUltimaInteracao)), Mode = BindingMode.OneWay });
+            conteudo.Children.Add(tempo);
+        }
+        if (!ExibindoResolvidos && (_filtroStatus == "Todos" || atendimento.EstaAdiado))
             conteudo.Children.Add(new TextBlock { Text = atendimento.SituacaoText, Opacity = 0.7, TextWrapping = TextWrapping.Wrap });
         card.Child = conteudo;
         return card;
@@ -267,6 +383,12 @@ public sealed partial class MainPage : Page
 
     private List<AtendimentoMonitorado> FiltrarAtendimentos()
     {
+        if (ExibindoResolvidos)
+        {
+            var termo = BuscaResolvidos.Text;
+            return _resolvidos.Values.Where(item => item.CorrespondeBusca(termo))
+                .OrderByDescending(item => item.UltimaAtividadeEm).ThenByDescending(item => item.Id).ToList();
+        }
         return _atendimentos.Where(item => _filtroStatus switch { "Em aberto" => !item.EstaAdiado, "Adiado" => item.EstaAdiado, _ => true })
             .OrderBy(item => item.ReferenciaInteracao).ThenBy(item => item.Id).ToList();
     }
@@ -277,31 +399,43 @@ public sealed partial class MainPage : Page
         AtualizarFiltrosVisuais();
         PreencherLista();
     }
-    private void Filtro_Click(object sender, RoutedEventArgs e)
+    private async void Filtro_Click(object sender, RoutedEventArgs e)
     {
+        var anterior = _filtroStatus;
         _filtroStatus = (sender as FrameworkElement)?.Tag as string ?? "Em aberto";
+        BarraResolvidos.Visibility = ResumoResolvidos.Visibility = ExibindoResolvidos ? Visibility.Visible : Visibility.Collapsed;
+        SincronizacaoText.Visibility = ExibindoResolvidos ? Visibility.Collapsed : Visibility.Visible;
+        if (!ExibindoResolvidos) CancelarConsultaResolvidos();
+        AtualizarDisponibilidadeDaAtualizacao();
         AplicarFiltros();
+        if (anterior != _filtroStatus)
+        {
+            ListaScroll.ChangeView(null, 0, null, disableAnimation: true);
+            if (ExibindoResolvidos)
+            {
+                StatusInfo.IsOpen = false;
+                if (_proximaPaginaResolvidos == 1) await CarregarResolvidosAsync();
+            }
+        }
     }
     private void AtualizarTemposExibidos()
     {
-        foreach (var atendimento in _atendimentos) atendimento.AtualizarTempo(DateTimeOffset.Now);
-        NotificarAtendimentosPendentes();
-    }
-    private void NotificarAtendimentosPendentes()
-    {
-        if (!_notificacoesAtivas) return;
-        var novosAlertas = _notificacoes.NotificarAtendimentosSemInteracao(_atendimentos, _limiteNotificacaoMinutos, _preferencias);
-        if (_notificacoes.UltimoErro is { } erro && erro != _ultimoErroNotificacaoExibido)
+        var agora = DateTimeOffset.Now;
+        var atualizacao = _alertas.Atualizar(_atendimentos, agora,
+            _notificacoesAtivas ? _limiteNotificacaoMinutos : null, AlertaInteracaoInfo.IsOpen);
+        if (atualizacao.Atual is { } alerta)
         {
-            _ultimoErroNotificacaoExibido = erro;
-            MostrarAviso("Notificações do Windows", erro, InfoBarSeverity.Warning);
+            AlertaInteracaoInfo.Title = $"Ticket #{alerta.Id}";
+            AlertaInteracaoInfo.Message = $"{alerta.Cliente} · {alerta.DescreverAlerta(agora)}";
         }
-        else if (_notificacoes.UltimoErro is null) _ultimoErroNotificacaoExibido = null;
-        if (novosAlertas.Count == 0) return;
-        var primeiro = novosAlertas[0];
-        AlertaInteracaoInfo.Title = novosAlertas.Count == 1 ? $"Ticket #{primeiro.Id}" : $"{novosAlertas.Count} tickets";
-        AlertaInteracaoInfo.Message = $"{primeiro.Cliente} · Última interação {primeiro.TempoUltimaInteracaoAgente}";
-        AlertaInteracaoInfo.IsOpen = true;
+        AlertaInteracaoInfo.IsOpen = atualizacao.Atual is not null;
+
+        if (!_preferencias.NotificacoesSistema) return;
+        var notificacoes = ((App)Application.Current).Notificacoes;
+        notificacoes.NotificarAtendimentos(atualizacao.Elegiveis, agora, _preferencias.SomNotificacoes);
+        if (notificacoes.UltimoErro is { } erro && erro != _ultimoErroNotificacaoExibido)
+            MostrarAviso("Notificações do Windows", erro, InfoBarSeverity.Warning);
+        _ultimoErroNotificacaoExibido = notificacoes.UltimoErro;
     }
 
     private async Task ExportarAtendimentoAsync(AtendimentoMonitorado atendimento, bool copiar)

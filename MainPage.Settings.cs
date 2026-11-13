@@ -22,29 +22,49 @@ public sealed partial class MainPage
         var segundoPlano = new ToggleSwitch { Header = "Continuar em segundo plano ao fechar a janela", IsOn = InicializacaoWindowsService.ManterEmSegundoPlano };
         var instrucaoGeral = new TextBlock { Text = "Ao entrar no Windows, o ServiceDesk inicia junto ao relógio. Clique no ícone para abrir. Use o menu do ícone → Sair para encerrar completamente.", TextWrapping = TextWrapping.Wrap };
         var ativa = new ToggleSwitch { Header = "Atualizar tickets automaticamente", IsOn = _atualizacaoAutomaticaAtiva };
-        var intervalo = new NumberBox { Header = "Intervalo de atualização (minutos)", Minimum = 1, Maximum = 120, Value = _intervaloAtualizacaoMinutos, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline };
+        var tempoReal = new ToggleSwitch { Header = "Atualização em tempo real", IsOn = _preferirTempoReal, IsEnabled = ativa.IsOn };
+        var intervalo = new NumberBox { Header = "Intervalo fixo (minutos)", Minimum = 1, Maximum = 120, Value = _intervaloAtualizacaoMinutos,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline, IsEnabled = ativa.IsOn && !tempoReal.IsOn };
+        ativa.Toggled += (_, _) =>
+        {
+            tempoReal.IsEnabled = ativa.IsOn;
+            intervalo.IsEnabled = ativa.IsOn && !tempoReal.IsOn;
+        };
+        tempoReal.Toggled += (_, _) => intervalo.IsEnabled = ativa.IsOn && !tempoReal.IsOn;
         var notificacoes = new ToggleSwitch { Header = "Ativar alertas de última interação", IsOn = _notificacoesAtivas };
         var limite = new NumberBox { Header = "Alertar após quantos minutos", Minimum = 1, Maximum = 1440, Value = _limiteNotificacaoMinutos, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline };
         var tema = new ComboBox { Header = "Tema", ItemsSource = new[] { "Sistema", "Claro", "Escuro" }, SelectedItem = _preferencias.Tema, HorizontalAlignment = HorizontalAlignment.Stretch };
         var cor = new ComboBox { Header = "Cor de destaque", ItemsSource = new[] { "Azul", "Verde", "Roxo", "Laranja", "Vermelho" }, SelectedItem = _preferencias.Cor, HorizontalAlignment = HorizontalAlignment.Stretch };
         var sistema = new ToggleSwitch { Header = "Notificações do Windows", IsOn = _preferencias.NotificacoesSistema };
         var som = new ToggleSwitch { Header = "Som nas notificações do Windows", IsOn = _preferencias.SomNotificacoes, IsEnabled = sistema.IsOn };
-        foreach (var opcao in new[] { iniciarWindows, segundoPlano, ativa, notificacoes, sistema, som, mostrar })
+        foreach (var opcao in new[] { iniciarWindows, segundoPlano, ativa, notificacoes, sistema, som, mostrar, tempoReal })
             opcao.Header = new TextBlock { Text = (string)opcao.Header, TextWrapping = TextWrapping.Wrap };
-        sistema.Toggled += (_, _) => som.IsEnabled = sistema.IsOn;
         var testeNotificacao = new Button { Content = "Testar notificação do Windows", IsEnabled = sistema.IsOn };
         var resultadoNotificacao = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        sistema.Toggled += (_, _) => testeNotificacao.IsEnabled = sistema.IsOn;
-        testeNotificacao.Click += (_, _) =>
+        var testandoNotificacao = false;
+        sistema.Toggled += (_, _) =>
         {
+            som.IsEnabled = sistema.IsOn;
+            testeNotificacao.IsEnabled = sistema.IsOn && !testandoNotificacao;
+        };
+        testeNotificacao.Click += async (_, _) =>
+        {
+            testandoNotificacao = true;
+            testeNotificacao.IsEnabled = false;
+            resultadoNotificacao.Text = "Enviando notificação…";
             try
             {
-                _notificacoes.Testar(som.IsOn);
-                resultadoNotificacao.Text = "Teste enviado ao Windows. Confira a central de notificações. O modo Não incomodar pode ocultar o banner.";
+                await ((App)Application.Current).Notificacoes.TestarAsync(som.IsOn);
+                resultadoNotificacao.Text = "Notificação entregue à Central de Notificações do Windows. O modo Não incomodar pode ocultar o banner.";
             }
             catch (Exception ex) { resultadoNotificacao.Text = $"Não foi possível enviar: {ex.Message}"; }
+            finally
+            {
+                testandoNotificacao = false;
+                testeNotificacao.IsEnabled = sistema.IsOn;
+            }
         };
-        var explicacaoAlertas = new TextBlock { Text = "O limite abaixo considera a última interação identificada do agente atribuído. É um alerta local de inatividade, não uma meta de SLA.", TextWrapping = TextWrapping.Wrap };
+        var explicacaoAlertas = new TextBlock { Text = "O limite conta desde a última interação do agente. Se ele ainda não respondeu, conta desde a última mensagem do cliente.", TextWrapping = TextWrapping.Wrap };
         var status = new TextBlock { Text = $"Versão instalada: {AtualizacaoAplicativoService.VersaoAtual}", TextWrapping = TextWrapping.Wrap };
         var autor = new TextBlock { Text = "Desenvolvido por Rafael Stolf Silva", TextWrapping = TextWrapping.Wrap };
         var repositorio = new HyperlinkButton
@@ -67,7 +87,7 @@ public sealed partial class MainPage
         {
             ("Geral", Painel(iniciarWindows, segundoPlano, instrucaoGeral)),
             ("Chatwoot", Painel(url, conta, chave, mostrar, inbox)),
-            ("Fila", Painel(ativa, intervalo)),
+            ("Fila", Painel(ativa, tempoReal, intervalo)),
             ("Aparência", Painel(tema, cor)),
             ("Alertas", Painel(notificacoes, limite, sistema, som, testeNotificacao, resultadoNotificacao, explicacaoAlertas)),
             ("Sobre", Painel(autor, repositorio, status, verificar, atualizar, progresso, informacao))
@@ -147,8 +167,9 @@ public sealed partial class MainPage
                 || string.IsNullOrWhiteSpace(chave.Password) || !long.TryParse(conta.Text, out var contaId) || contaId <= 0
                 || !long.TryParse(inbox.Text, out var inboxId) || inboxId <= 0))
             { erro.Text = "Informe endereço HTTPS, chave da API e IDs positivos da conta e caixa de entrada."; args.Cancel = true; return; }
-            if (double.IsNaN(intervalo.Value) || double.IsNaN(limite.Value))
+            if ((intervalo.IsEnabled && double.IsNaN(intervalo.Value)) || double.IsNaN(limite.Value))
             { erro.Text = "Informe os intervalos em minutos."; args.Cancel = true; return; }
+            var intervaloFixo = double.IsNaN(intervalo.Value) ? _intervaloAtualizacaoMinutos : (int)Math.Round(intervalo.Value);
             try
             {
                 InicializacaoWindowsService.Configurar(iniciarWindows.IsOn, segundoPlano.IsOn);
@@ -158,7 +179,7 @@ public sealed partial class MainPage
                     ["chatwoot.api-access-token"] = chave.Password, ["chatwoot.inbox-id"] = inbox.Text.Trim()
                 });
                 _preferenciasService.Salvar(new PreferenciasInterface { Tema = tema.SelectedItem as string ?? "Sistema", Cor = cor.SelectedItem as string ?? "Azul", NotificacoesSistema = sistema.IsOn, SomNotificacoes = som.IsOn });
-                _configuracaoAtualizacao.Salvar(new ConfiguracaoAtualizacao(ativa.IsOn, Math.Clamp((int)Math.Round(intervalo.Value), 1, 120), notificacoes.IsOn, Math.Clamp((int)Math.Round(limite.Value), 1, 1440)));
+                _configuracaoAtualizacao.Salvar(new ConfiguracaoAtualizacao(ativa.IsOn, Math.Clamp(intervaloFixo, 1, 120), notificacoes.IsOn, Math.Clamp((int)Math.Round(limite.Value), 1, 1440), tempoReal.IsOn));
             }
             catch (Exception ex) { erro.Text = $"Não foi possível salvar: {ex.Message}"; args.Cancel = true; }
         };
@@ -166,7 +187,8 @@ public sealed partial class MainPage
         {
             AplicarPreferenciasInterface();
             CarregarConfiguracaoAtualizacao();
-            await AtualizarAsync();
+            ReiniciarResolvidos();
+            await Task.WhenAll(AtualizarAsync(), ExibindoResolvidos ? CarregarResolvidosAsync() : Task.CompletedTask);
         }
     }
 }
