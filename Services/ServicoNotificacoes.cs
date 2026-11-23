@@ -8,20 +8,28 @@ namespace ServiceDesk.Services;
 
 internal sealed class ServicoNotificacoes : IDisposable
 {
-    private static readonly TimeSpan IntervaloTentativas = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan IntervaloBanners = TimeSpan.FromSeconds(8);
-    private readonly Dictionary<long, Tentativa> _tentativas = new();
+    private const string GrupoTeste = "diagnostico";
+    private const string EtiquetaTeste = "teste";
     private const string GrupoTickets = "tickets";
-    private DateTimeOffset _proximoBanner;
+    private const string GrupoLembretes = "atrasos";
+    private const string EtiquetaLembrete = "resumo";
+    private readonly AgendaNotificacoesAtraso _agenda = new();
+    private readonly Dictionary<long, AvisoRecebido> _avisosIndividuais = new();
+    private IReadOnlyList<AtrasoAtendimento> _elegiveis = [];
+    private AvisoRecebido? _resumo;
+    private DateTimeOffset _agora;
     private DateTimeOffset _proximaAtualizacao;
+    private long _versaoAlertas;
     private bool _atualizandoAvisos;
     private AppNotificationManager? _notificador;
     private Action? _abrirAplicativo;
     private string? _erroRegistro;
 
     internal string? UltimoErro { get; private set; }
-    private readonly record struct Tentativa(long? Agente, DateTimeOffset Interacao, DateTimeOffset Horario,
-        string? Erro, uint? AvisoId = null, string? Texto = null);
+
+    private readonly record struct ConteudoAviso(string Titulo, string Detalhe, string? Estado,
+        string Grupo, string Etiqueta);
+    private readonly record struct AvisoRecebido(uint Id, ConteudoAviso Conteudo);
 
     // O identificador deve corresponder ao AppUserModelID do atalho criado pelo Inno Setup.
     internal static void UsarIdentidadeDaInstalacao()
@@ -65,101 +73,173 @@ internal sealed class ServicoNotificacoes : IDisposable
         }
     }
 
-    internal void NotificarAtendimentos(IEnumerable<AtendimentoMonitorado> elegiveis, DateTimeOffset agora, bool som)
+    internal void NotificarAtendimentos(IReadOnlyList<AtrasoAtendimento> elegiveis, IReadOnlySet<long> episodiosAbertos,
+        DateTimeOffset agora, SomNotificacao? som, int intervaloLembreteMinutos, bool ativo)
     {
-        UltimoErro = null;
-        var podeAtualizar = !_atualizandoAvisos && agora >= _proximaAtualizacao;
-        List<(AtendimentoMonitorado Ticket, Tentativa Anterior, string Texto)>? atualizacoes = null;
-        foreach (var atendimento in elegiveis)
+        var erroPermissao = ativo && elegiveis.Count > 0 ? VerificarPermissao() : null;
+        ativo = ativo && erroPermissao is null;
+
+        if (_elegiveis.Count > 0 && (!ativo || elegiveis.Count == 0)) _versaoAlertas++;
+        _elegiveis = ativo ? elegiveis : [];
+        _agora = agora;
+        if (_elegiveis.Count == 0 || intervaloLembreteMinutos <= 0) _resumo = null;
+        foreach (var episodio in _avisosIndividuais.Keys.Where(id => !episodiosAbertos.Contains(id)).ToArray())
+            _avisosIndividuais.Remove(episodio);
+
+        var episodiosElegiveis = _elegiveis.Select(atraso => atraso.Episodio).ToArray();
+        if (_agenda.Planejar(episodiosElegiveis, episodiosAbertos, agora, intervaloLembreteMinutos, ativo) is { } envio
+            && ObterConteudo(envio.Episodio) is { } conteudo)
         {
-            if (atendimento.ReferenciaAlerta is not { } referencia) continue;
-            var tentativa = new Tentativa(atendimento.AgenteAtribuidoId, referencia, agora, null);
-            if (_tentativas.TryGetValue(atendimento.Id, out var anterior)
-                && anterior.Agente == tentativa.Agente && anterior.Interacao == tentativa.Interacao)
-            {
-                if (anterior.Erro is null)
-                {
-                    if (podeAtualizar && anterior.AvisoId is not null)
-                    {
-                        var texto = atendimento.DescreverAlerta(agora);
-                        if (texto != anterior.Texto) (atualizacoes ??= []).Add((atendimento, anterior, texto));
-                    }
-                    continue;
-                }
-                if (agora - anterior.Horario < IntervaloTentativas)
-                {
-                    UltimoErro ??= anterior.Erro;
-                    continue;
-                }
-            }
-
-            if (agora < _proximoBanner) continue;
-
-            // Dá tempo para o Windows apresentar cada aviso quando vários tickets vencem juntos.
-            _proximoBanner = agora + IntervaloBanners;
-            try
-            {
-                var texto = atendimento.DescreverAlerta(agora);
-                var id = Exibir(atendimento, texto, som, silencioso: false);
-                tentativa = tentativa with { AvisoId = id, Texto = texto };
-            }
+            string? erro = null;
+            try { GuardarAviso(envio.Episodio, new AvisoRecebido(Exibir(conteudo, som, silencioso: false), conteudo)); }
             catch (Exception ex)
             {
-                var mensagem = $"Notificação do Windows não enviada: {ex.Message}";
-                tentativa = tentativa with { Erro = mensagem };
-                UltimoErro ??= mensagem;
+                erro = $"Notificação do Windows não enviada: {ex.Message}";
                 RegistrarFalha(ex);
             }
-            _tentativas[atendimento.Id] = tentativa;
+            _agenda.RegistrarResultado(envio, agora, erro);
         }
-        if (atualizacoes is not null) _ = AtualizarAvisosAsync(atualizacoes);
+
+        UltimoErro = erroPermissao ?? (ativo ? _agenda.ObterErro(episodiosElegiveis) : null);
+        PrepararAtualizacaoDosAvisos();
     }
 
-    private async Task AtualizarAvisosAsync(List<(AtendimentoMonitorado Ticket, Tentativa Anterior, string Texto)> atualizacoes)
+    internal void LimparAlertasAtendimento()
     {
-        if (_notificador is not { } notificador) return;
+        _versaoAlertas++;
+        _elegiveis = [];
+        _avisosIndividuais.Clear();
+        _resumo = null;
+        _proximaAtualizacao = default;
+        UltimoErro = null;
+        _agenda.Limpar();
+    }
+
+    private void PrepararAtualizacaoDosAvisos()
+    {
+        if (_notificador is not { } notificador || _atualizandoAvisos || _agora < _proximaAtualizacao) return;
+        List<(long? Episodio, AvisoRecebido Anterior)>? atualizacoes = null;
+        foreach (var atraso in _elegiveis)
+        {
+            if (_avisosIndividuais.TryGetValue(atraso.Episodio, out var anterior) && ConteudoDoTicket(atraso) != anterior.Conteudo)
+                (atualizacoes ??= []).Add((atraso.Episodio, anterior));
+        }
+        if (_resumo is { } resumo && ConteudoDoLembrete() != resumo.Conteudo)
+            (atualizacoes ??= []).Add((null, resumo));
+        if (atualizacoes is not null) _ = AtualizarAvisosAsync(notificador, atualizacoes, _versaoAlertas);
+    }
+
+    private async Task AtualizarAvisosAsync(AppNotificationManager notificador,
+        List<(long? Episodio, AvisoRecebido Anterior)> atualizacoes, long versao)
+    {
         _atualizandoAvisos = true;
         try
         {
             var recebidas = await notificador.GetAllAsync();
-            if (_notificador != notificador) return;
+            if (_notificador != notificador || versao != _versaoAlertas
+                || DateTimeOffset.Now - _agora > AgendaNotificacoesAtraso.PausaEntreAvaliacoes)
+                return;
 
             var ids = recebidas.Select(aviso => aviso.Id).ToHashSet();
-            foreach (var (ticket, anterior, texto) in atualizacoes)
+            foreach (var (episodio, anterior) in atualizacoes)
             {
-                if (!_tentativas.TryGetValue(ticket.Id, out var atual) || atual != anterior) continue;
-                if (!ids.Contains(anterior.AvisoId!.Value))
+                // A fila ou o aviso com esta etiqueta pode ter mudado enquanto o Windows consultava a Central.
+                if (ObterAviso(episodio) != anterior || ObterConteudo(episodio) is not { } conteudo) continue;
+                if (!ids.Contains(anterior.Id))
                 {
-                    _tentativas[ticket.Id] = anterior with { AvisoId = null };
+                    GuardarAviso(episodio, null);
                     continue;
                 }
-                var id = Exibir(ticket, texto, som: false, silencioso: true);
-                _tentativas[ticket.Id] = anterior with { AvisoId = id, Texto = texto };
+                if (conteudo == anterior.Conteudo) continue;
+
+                var id = Exibir(conteudo, som: null, silencioso: true);
+                GuardarAviso(episodio, new AvisoRecebido(id, conteudo));
             }
         }
         catch (Exception ex)
         {
-            _proximaAtualizacao = DateTimeOffset.Now.AddSeconds(30);
+            if (versao == _versaoAlertas) _proximaAtualizacao = _agora.AddSeconds(30);
             RegistrarFalha(ex);
         }
         finally { _atualizandoAvisos = false; }
     }
 
-    private uint Exibir(AtendimentoMonitorado atendimento, string texto, bool som, bool silencioso)
+    private AvisoRecebido? ObterAviso(long? episodio)
     {
-        var identificacao = string.IsNullOrWhiteSpace(atendimento.Empresa)
-            ? atendimento.Cliente : $"{atendimento.Cliente} · {atendimento.Empresa}";
-        return Enviar(som, [$"ServiceDesk · Ticket #{atendimento.Id}", identificacao, texto], atendimento.Id, silencioso);
+        if (episodio is not { } id) return _resumo;
+        return _avisosIndividuais.TryGetValue(id, out var aviso) ? aviso : null;
     }
 
-    internal async Task TestarAsync(bool som)
+    private void GuardarAviso(long? episodio, AvisoRecebido? aviso)
+    {
+        if (episodio is not { } id) _resumo = aviso;
+        else if (aviso is { } recebido) _avisosIndividuais[id] = recebido;
+        else _avisosIndividuais.Remove(id);
+    }
+
+    private ConteudoAviso? ObterConteudo(long? episodio)
+    {
+        if (episodio is not { } id) return _elegiveis.Count == 0 ? null : ConteudoDoLembrete();
+
+        var atraso = _elegiveis.FirstOrDefault(atraso => atraso.Episodio == id);
+        return atraso is null ? null : ConteudoDoTicket(atraso);
+    }
+
+    private ConteudoAviso ConteudoDoTicket(AtrasoAtendimento atraso)
+    {
+        var ticket = atraso.Ticket;
+        var identificacao = string.IsNullOrWhiteSpace(ticket.Empresa)
+            ? ticket.Cliente : $"{ticket.Cliente} · {ticket.Empresa}";
+        return new ConteudoAviso($"ServiceDesk · Ticket #{ticket.Id}", identificacao, atraso.Texto(_agora),
+            GrupoTickets, ticket.Id.ToString("x", System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    private ConteudoAviso ConteudoDoLembrete()
+    {
+        var quantidade = _elegiveis.Count == 1 ? "1 ticket em atraso" : $"{_elegiveis.Count} tickets em atraso";
+        return new ConteudoAviso($"ServiceDesk · {quantidade}", $"Espera mais antiga · {_elegiveis[0].Tempo(_agora)}",
+            null, GrupoLembretes, EtiquetaLembrete);
+    }
+
+    private uint Exibir(ConteudoAviso conteudo, SomNotificacao? som, bool silencioso)
+    {
+        string[] linhas = conteudo.Estado is { } estado
+            ? [conteudo.Titulo, conteudo.Detalhe, estado] : [conteudo.Titulo, conteudo.Detalhe];
+        return Enviar(som, linhas, (conteudo.Grupo, conteudo.Etiqueta), silencioso);
+    }
+
+    internal void AvisarNovaVersao(Version versao, SomNotificacao? som)
+    {
+        try { Enviar(som, ["Nova versão do ServiceDesk", $"A versão {versao} está disponível em Configurações → Sobre."]); }
+        catch (Exception ex) { RegistrarFalha(ex); }
+    }
+
+    internal async Task<bool> TestarAsync(SomNotificacao? som)
     {
         try
         {
-            var id = Enviar(som, ["ServiceDesk", "Notificação de teste"]);
-            var recebidas = await _notificador!.GetAllAsync();
-            if (!recebidas.Any(aviso => aviso.Id == id))
-                throw new InvalidOperationException("O Windows não confirmou a notificação na Central de Notificações.");
+            var notificador = ObterNotificadorAtivo();
+            try { await notificador.RemoveByTagAndGroupAsync(EtiquetaTeste, GrupoTeste); }
+            catch (COMException ex) { RegistrarFalha(ex); }
+            var id = Enviar(som, ["ServiceDesk", "Notificação de teste"], (GrupoTeste, EtiquetaTeste));
+            var limite = DateTimeOffset.UtcNow.AddSeconds(3);
+            do
+            {
+                try
+                {
+                    var recebidas = await notificador.GetAllAsync();
+                    if (recebidas.Any(aviso => aviso.Id == id)) return true;
+                }
+                catch (COMException ex)
+                {
+                    RegistrarFalha(ex);
+                    return false;
+                }
+                await Task.Delay(200);
+            } while (DateTimeOffset.UtcNow < limite && _notificador == notificador);
+
+            // O Windows pode aceitar o envio antes de o aviso aparecer na Central.
+            return false;
         }
         catch (Exception ex)
         {
@@ -168,21 +248,68 @@ internal sealed class ServicoNotificacoes : IDisposable
         }
     }
 
-    private uint Enviar(bool som, string[] linhas, long? ticketId = null, bool silencioso = false)
+    internal static bool OuvirSom(SomNotificacao som)
+    {
+        var alias = som switch
+        {
+            SomNotificacao.Mensagem => "Notification.IM",
+            SomNotificacao.Email => "Notification.Mail",
+            SomNotificacao.Lembrete => "Notification.Reminder",
+            SomNotificacao.Alarme => "Notification.Looping.Alarm",
+            _ => "Notification.Default"
+        };
+        const uint aliasAssincronoSemSomAlternativo = 0x00010000 | 0x0001 | 0x0002;
+        return PlaySound(alias, IntPtr.Zero, aliasAssincronoSemSomAlternativo);
+    }
+
+    [DllImport("winmm.dll", EntryPoint = "PlaySoundW", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PlaySound(string som, IntPtr modulo, uint opcoes);
+
+    private string? VerificarPermissao()
+    {
+        if (_notificador is not { } notificador) return _erroRegistro ?? "Notificações do Windows indisponíveis.";
+        try { return ErroPermissao(notificador.Setting); }
+        catch (Exception ex)
+        {
+            var erro = $"Não foi possível verificar a permissão de notificação do Windows: {ex.Message}";
+            if (UltimoErro != erro) RegistrarFalha(ex);
+            return erro;
+        }
+    }
+
+    private static string? ErroPermissao(AppNotificationSetting permissao) =>
+        permissao == AppNotificationSetting.Enabled ? null
+            : $"Permissão indisponível ({permissao}). Confira Configurações do Windows → Sistema → Notificações → ServiceDesk.";
+
+    private AppNotificationManager ObterNotificadorAtivo()
     {
         var notificador = _notificador ?? throw new InvalidOperationException(_erroRegistro ?? "Notificações do Windows indisponíveis.");
-        var permissao = notificador.Setting;
-        if (permissao != AppNotificationSetting.Enabled)
-            throw new InvalidOperationException($"Permissão indisponível ({permissao}). Confira Configurações do Windows → Sistema → Notificações → ServiceDesk.");
+        if (ErroPermissao(notificador.Setting) is { } erro) throw new InvalidOperationException(erro);
+        return notificador;
+    }
 
+    private uint Enviar(SomNotificacao? som, string[] linhas, (string Grupo, string Etiqueta)? identificador = null,
+        bool silencioso = false)
+    {
+        var notificador = ObterNotificadorAtivo();
         var construtor = new AppNotificationBuilder();
         foreach (var linha in linhas) construtor.AddText(linha);
-        if (!som) construtor.MuteAudio();
+        if (som is null) construtor.MuteAudio();
+        else if (som != SomNotificacao.Padrao)
+            construtor.SetAudioEvent(som switch
+            {
+                SomNotificacao.Mensagem => AppNotificationSoundEvent.IM,
+                SomNotificacao.Email => AppNotificationSoundEvent.Mail,
+                SomNotificacao.Lembrete => AppNotificationSoundEvent.Reminder,
+                SomNotificacao.Alarme => AppNotificationSoundEvent.Alarm,
+                _ => AppNotificationSoundEvent.Default
+            });
         var aviso = construtor.BuildNotification();
-        if (ticketId is { } id)
+        if (identificador is { } chave)
         {
-            aviso.Group = GrupoTickets;
-            aviso.Tag = id.ToString("x", System.Globalization.CultureInfo.InvariantCulture);
+            aviso.Group = chave.Grupo;
+            aviso.Tag = chave.Etiqueta;
         }
         aviso.SuppressDisplay = silencioso;
         notificador.Show(aviso);
@@ -209,6 +336,7 @@ internal sealed class ServicoNotificacoes : IDisposable
     {
         if (_notificador is not { } notificador) return;
         _notificador = null;
+        LimparAlertasAtendimento();
         notificador.NotificationInvoked -= NotificacaoAcionada;
         notificador.Unregister();
     }

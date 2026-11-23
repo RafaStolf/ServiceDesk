@@ -13,13 +13,29 @@ public sealed class AtendimentoMonitorado : INotifyPropertyChanged
     public bool TemEmail => !string.IsNullOrWhiteSpace(Email);
     public string EmailText => TemEmail ? Email.Trim() : "E-mail não informado";
     public string Empresa { get; set; } = string.Empty;
+    internal string ValorDoCampo(string campo) => campo switch
+    {
+        "Empresa" => string.IsNullOrWhiteSpace(Empresa) ? "Empresa não informada" : Empresa,
+        "Telefone" => string.IsNullOrWhiteSpace(Telefone) ? "Telefone não informado" : Telefone,
+        "E-mail" => EmailText,
+        _ => string.Empty
+    };
+
+    internal string TituloPainel(IEnumerable<string> campos) =>
+        string.Join(" · ", new[] { Cliente }.Concat(campos.Select(ValorDoCampo)));
+
+    public bool EhGrupo { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTimeOffset CriadoEm { get; set; }
     public DateTimeOffset? UltimaInteracaoAgenteEm { get; set; }
+    public DateTimeOffset? UltimaRespostaPublicaEm { get; set; }
     public DateTimeOffset? UltimaMensagemClienteEm { get; set; }
     public DateTimeOffset? UltimaMensagemPublicaEm { get; set; }
     public DateTimeOffset? UltimaAtividadeEm { get; set; }
+    public DateTimeOffset? ResolvidoEm { get; set; }
     public DateTimeOffset? AdiadoAte { get; set; }
+    public bool EsperaInformadaPeloChatwoot { get; set; }
+    public DateTimeOffset? ClienteAguardaDesde { get; set; }
 
     public long? AgenteAtribuidoId { get; set; }
 
@@ -40,18 +56,6 @@ public sealed class AtendimentoMonitorado : INotifyPropertyChanged
 
     /// <summary>Ordena pela última interação conhecida do agente; valores desconhecidos ficam ao final.</summary>
     public DateTimeOffset ReferenciaInteracao => DataValida(UltimaInteracaoAgenteEm) ?? DateTimeOffset.MaxValue;
-    internal DateTimeOffset? ReferenciaAlerta =>
-        DataValida(UltimaInteracaoAgenteEm) ?? DataValida(UltimaMensagemClienteEm);
-
-    internal string DescreverAlerta(DateTimeOffset agora)
-    {
-        if (DataValida(UltimaInteracaoAgenteEm) is { } agente)
-            return $"Última interação do agente {FormatarDuracao(agora - agente)}";
-        if (DataValida(UltimaMensagemClienteEm) is { } cliente)
-            return $"Cliente aguarda resposta {FormatarDuracao(agora - cliente)}";
-        return "Última interação não identificada";
-    }
-
     public bool EstaAdiado => string.Equals(Status, "snoozed", StringComparison.OrdinalIgnoreCase);
     public string SituacaoText => Status.ToLowerInvariant() switch
     {

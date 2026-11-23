@@ -10,28 +10,10 @@ public sealed partial class MainPage
     private readonly Dictionary<long, AtendimentoMonitorado> _resolvidos = new();
     private CancellationTokenSource? _consultaResolvidos;
     private int _proximaPaginaResolvidos = 1;
-    private int _historicosIndisponiveis;
     private bool _temMaisResolvidos = true;
     private string? _erroResolvidos;
 
-    private bool ExibindoResolvidos => _filtroStatus == "Resolvidos";
-
-    private void NavegacaoTickets_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (!_interfaceIniciada) return;
-
-        const double larguraMinimaParaMesmaLinha = 880;
-        var mesmaLinha = e.NewSize.Width >= larguraMinimaParaMesmaLinha;
-        var linha = mesmaLinha ? 0 : 1;
-        if (Grid.GetRow(BarraResolvidos) == linha) return;
-
-        var colunas = mesmaLinha ? 1 : 2;
-        Grid.SetColumnSpan(AbasTickets, colunas);
-        Grid.SetRow(BarraResolvidos, linha);
-        Grid.SetColumn(BarraResolvidos, mesmaLinha ? 1 : 0);
-        Grid.SetColumnSpan(BarraResolvidos, colunas);
-        BarraResolvidos.Margin = mesmaLinha ? new Thickness(0) : new Thickness(0, 8, 0, 0);
-    }
+    private bool ExibindoResolvidos => _fila == FilaTickets.Resolvidos;
 
     private async void EscopoResolvidos_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -48,7 +30,10 @@ public sealed partial class MainPage
         PreencherLista();
         ListaScroll.ChangeView(null, 0, null, disableAnimation: true);
         if (_consultaResolvidos is null && _erroResolvidos is null)
+        {
             ResumoResolvidos.Text = DescreverResolvidos();
+            DispatcherQueue.TryEnqueue(VerificarFimDaLista);
+        }
     }
 
     private void ReiniciarResolvidos()
@@ -56,7 +41,6 @@ public sealed partial class MainPage
         CancelarConsultaResolvidos();
         _resolvidos.Clear();
         _proximaPaginaResolvidos = 1;
-        _historicosIndisponiveis = 0;
         _temMaisResolvidos = true;
         _erroResolvidos = null;
         if (!ExibindoResolvidos) return;
@@ -89,11 +73,12 @@ public sealed partial class MainPage
             if (_consultaResolvidos != consulta) return;
 
             foreach (var atendimento in pagina.Atendimentos) _resolvidos[atendimento.Id] = atendimento;
-            _historicosIndisponiveis += pagina.HistoricosIndisponiveis;
             _proximaPaginaResolvidos++;
             _temMaisResolvidos = pagina.TemMais;
             PreencherLista();
             ResumoResolvidos.Text = DescreverResolvidos();
+            await chatwoot.CompletarDatasDeResolucaoAsync(pagina.Atendimentos, consulta.Token);
+            if (_consultaResolvidos == consulta) AtualizarEstadosDosCards(DateTimeOffset.Now);
         }
         catch (Exception ex)
         {
@@ -109,15 +94,27 @@ public sealed partial class MainPage
             {
                 _consultaResolvidos = null;
                 AtualizarControlesResolvidos();
+                DispatcherQueue.TryEnqueue(VerificarFimDaLista);
             }
         }
+    }
+
+    private void VerificarFimDaLista()
+    {
+        if (!_interfaceIniciada || !ExibindoResolvidos || TelaSecundaria.Content is not null ||
+            _consultaResolvidos is not null || !_temMaisResolvidos || _erroResolvidos is not null ||
+            ListaScroll.ViewportHeight <= 0 || !string.IsNullOrWhiteSpace(BuscaResolvidos.Text)) return;
+        ListaScroll.UpdateLayout();
+        if (_consultaResolvidos is null && ListaScroll.ScrollableHeight - ListaScroll.VerticalOffset <= 8)
+            _ = CarregarResolvidosAsync();
     }
 
     private void AtualizarControlesResolvidos()
     {
         AtualizarDisponibilidadeDaAtualizacao();
+        RepetirConsulta.Visibility = ExibindoResolvidos && _erroResolvidos is not null ? Visibility.Visible : Visibility.Collapsed;
         MaisResolvidosButton.IsEnabled = _consultaResolvidos is null;
-        MaisResolvidosButton.Visibility = _temMaisResolvidos && _proximaPaginaResolvidos > 1
+        MaisResolvidosButton.Visibility = _temMaisResolvidos && (_erroResolvidos is not null || _proximaPaginaResolvidos > 1)
             ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -138,8 +135,7 @@ public sealed partial class MainPage
                 ? "Nenhum resultado nos tickets carregados."
                 : $"{encontrados} de {_resolvidos.Count} tickets carregados.";
         }
-        if (_historicosIndisponiveis > 0)
-            texto += $" Históricos indisponíveis no Chatwoot: {_historicosIndisponiveis}.";
-        return texto;
+        var escopo = EscopoResolvidos.SelectedIndex == 0 ? "Meus tickets" : "Caixa de entrada";
+        return $"{escopo} · {texto}" + (_temMaisResolvidos ? "" : " Fim dos resultados.");
     }
 }

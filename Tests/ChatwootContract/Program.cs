@@ -37,7 +37,7 @@ foreach (var privadaCC in notasCC)
 Verificar(MensagemChatwoot.Publica(Mensagem("""{"message_type":1,"is":{"private":false}}""")), "is.private=false permite mensagem para o cliente");
 
 var mensagens = new[] { agente, contato, bot, nota, atividade, template }.Concat(notasCC).ToArray();
-using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada(mensagens, false))))
+using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, [1]), new HttpClient(new ApiSimulada(mensagens, false))))
 {
     var conversas = await sync.SincronizarAsync(CancellationToken.None);
     var conversa = conversas.Single();
@@ -49,7 +49,7 @@ using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN
         && !exportacao.Texto.Contains("NOTA-PRIVADA-EXCLUIR") && !exportacao.Texto.Contains("EVENTO-EXCLUIR")
         && !exportacao.Texto.Contains("PRIVADA-LITERAL-EXCLUIR") && !exportacao.Texto.Contains("PRIVADA-ANINHADA-EXCLUIR"), "exportação mantém mensagens públicas e exclui notas/eventos");
 }
-using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada([], true))))
+using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, [1]), new HttpClient(new ApiSimulada([], true))))
 {
     var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
     Verificar(conversa.UltimaMensagemPublicaEm is null && conversa.UltimaInteracaoAgenteEm is null, "conversa vazia com last_non_activity_message=null sincroniza");
@@ -57,13 +57,13 @@ using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN
     conversa.AtualizarTempo(DateTimeOffset.UtcNow);
     Verificar(conversa.TempoUltimaInteracaoAgente == "Última interação não identificada", "card não inventa duração para interação desconhecida");
 }
-using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada(mensagens, false, true))))
+using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, [1]), new HttpClient(new ApiSimulada(mensagens, false, true))))
 {
     var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
     Verificar(conversa.UltimaInteracaoAgenteEm == DateTimeOffset.FromUnixTimeSeconds(1794340000)
         && conversa.UltimaMensagemClienteEm == DateTimeOffset.FromUnixTimeSeconds(1794340010), "página recente só com notas/eventos não impede buscar respostas na página anterior");
 }
-using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 999, 1), new HttpClient(new ApiSimulada(mensagens, false))))
+using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 999, [1]), new HttpClient(new ApiSimulada(mensagens, false))))
 {
     var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
     Verificar(conversa.AgenteAtribuidoId == 42 && conversa.UltimaInteracaoAgenteEm == DateTimeOffset.FromUnixTimeSeconds(1794340000), "agente atribuído no Chatwoot prevalece sobre ID legado configurado");
@@ -71,10 +71,18 @@ using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN
     conversa.AtualizarTempo(DateTimeOffset.FromUnixTimeSeconds(1794340300));
     Verificar(conversa.TempoUltimaInteracaoAgente == "há 5min", "card calcula o tempo da interação do agente atribuído");
 }
-using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada(mensagens, false, agenteId: null))))
+using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, [1]), new HttpClient(new ApiSimulada(mensagens, false, agenteId: null))))
 {
     var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
     Verificar(conversa.UltimaInteracaoAgenteEm is null, "ausência do agente atribuído não é substituída pelo usuário da configuração");
+}
+foreach (var valor in new[] { "null", "0", "\"0\"", "\"\"", "\"   \"" })
+{
+    using var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, [1]),
+        new HttpClient(new ApiSimulada([contato], vazia: true, campoEsperaJson: valor)));
+    var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
+    Verificar(conversa.EsperaInformadaPeloChatwoot && AcompanhamentoN1.DoTicket(conversa) is null,
+        $"waiting_since explícito ({valor}) prevalece sobre a última mensagem do cliente");
 }
 // Regressão: conversa recebida ainda sem resposta do agente (ticket 19680).
 {
@@ -89,7 +97,7 @@ using (var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN
 }
 foreach (var email in new string?[] { "  contato@example.com  ", null, "", "   " })
 {
-    using var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada(mensagens, false, emailContato: email)));
+    using var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, [1]), new HttpClient(new ApiSimulada(mensagens, false, emailContato: email)));
     var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
     var informado = !string.IsNullOrWhiteSpace(email);
     Verificar(conversa.Email == (email?.Trim() ?? "") && conversa.TemEmail == informado,
@@ -99,7 +107,7 @@ foreach (var email in new string?[] { "  contato@example.com  ", null, "", "   "
 }
 foreach (var (padrao, esperado) in new[] { ("Empresa oficial", "Empresa oficial"), ("", "Empresa de teste"), ("   ", "Empresa de teste") })
 {
-    using var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, 1), new HttpClient(new ApiSimulada(mensagens, false, empresaPadrao: padrao)));
+    using var sync = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, [1]), new HttpClient(new ApiSimulada(mensagens, false, empresaPadrao: padrao)));
     var conversa = (await sync.SincronizarAsync(CancellationToken.None)).Single();
     Verificar(conversa.Empresa == esperado, "campo padrão additional_attributes.company_name prevalece; vazio mantém alternativa personalizada");
 }
@@ -107,10 +115,31 @@ var preferenciasDir = Path.Combine(Path.GetTempPath(), "ServiceDesk-Interface-Te
 try
 {
     var servico = new PreferenciasInterfaceService(preferenciasDir);
-    Verificar(servico.Carregar() == new PreferenciasInterface(), "instalação sem preferências usa padrão");
-    var escolhidas = new PreferenciasInterface { Tema = "Escuro", Cor = "Verde", NotificacoesSistema = false, SomNotificacoes = false };
+    Verificar(JsonSerializer.Serialize(servico.Carregar()) == JsonSerializer.Serialize(new PreferenciasInterface()), "instalação sem preferências usa padrão");
+    Directory.CreateDirectory(preferenciasDir);
+    var arquivo = Path.Combine(preferenciasDir, "interface.json");
+    File.WriteAllText(arquivo, """{"SomNotificacoes":false}""");
+    Verificar(servico.Carregar().SomSelecionado is null, "preferências anteriores mantêm o modo silencioso");
+    Verificar(servico.Carregar() is { MostrarCardsFlutuantes: true, IntervaloLembreteMinutos: 5,
+        PosicaoFlutuante: PosicaoPainelFlutuante.InferiorDireita, MonitorFlutuante: null, EscalaFlutuante: 100, FonteFlutuante: "Segoe UI" },
+        "preferências anteriores adotam o painel e os lembretes a cada cinco minutos");
+    servico.Salvar(new PreferenciasInterface { ToqueNotificacoes = SomNotificacao.Email });
+    Verificar(servico.Carregar().SomSelecionado == SomNotificacao.Email, "som escolhido persiste ao reabrir");
+    var escolhidas = new PreferenciasInterface { Tema = "Escuro", Cor = "Verde", NotificacoesSistema = false,
+        SomNotificacoes = false, MostrarCardsFlutuantes = false, IntervaloLembreteMinutos = 0,
+        PosicaoFlutuante = PosicaoPainelFlutuante.SuperiorEsquerda, MonitorFlutuante = "Monitor de teste",
+        CamposFila = ["Telefone", "Empresa"], CamposPainel = ["E-mail"], PainelCompacto = true,
+        EscalaFlutuante = 125, FonteFlutuante = "Arial" };
     servico.Salvar(escolhidas);
-    Verificar(new PreferenciasInterfaceService(preferenciasDir).Carregar() == escolhidas, "tema, cor e notificações persistem ao reabrir");
+    Verificar(JsonSerializer.Serialize(new PreferenciasInterfaceService(preferenciasDir).Carregar()) == JsonSerializer.Serialize(escolhidas), "tema, cor e notificações persistem ao reabrir");
+    servico.Salvar(escolhidas with { IntervaloLembreteMinutos = 120 });
+    Verificar(servico.Carregar().IntervaloLembreteMinutos == 60, "lembretes respeitam o máximo de 60 minutos");
+    servico.Salvar(escolhidas with { EscalaFlutuante = 0, FonteFlutuante = " " });
+    Verificar(servico.Carregar() is { EscalaFlutuante: 75, FonteFlutuante: "Segoe UI" },
+        "o painel normaliza a escala mínima e recupera a fonte padrão");
+    servico.Salvar(escolhidas with { EscalaFlutuante = 999, FonteFlutuante = " Consolas " });
+    Verificar(servico.Carregar() is { EscalaFlutuante: 150, FonteFlutuante: "Consolas" },
+        "o painel limita a escala e normaliza o nome da fonte");
 }
 finally { if (Directory.Exists(preferenciasDir)) Directory.Delete(preferenciasDir, true); }
 var aberta = new AtendimentoMonitorado { Status = "open", AdiadoAte = DateTimeOffset.UtcNow.AddDays(1) };
@@ -120,6 +149,8 @@ Verificar(adiada.EstaAdiado && adiada.SituacaoText == "Adiada até a próxima re
 await MetricasTests.ExecutarAsync();
 await ResolvidosTests.ExecutarAsync();
 AlertasTests.Executar();
+AgendaNotificacoesAtrasoTests.Executar(Verificar);
+AcompanhamentoN1Tests.Executar();
 Verificar(ChatwootTempoReal.LerAlteracao(Mensagem("""{"message":{"event":"message.created","data":{"account_id":1,"inbox_id":12,"conversation_id":345}}}"""), 1)
     == new ChatwootTempoReal.Alteracao(12, 345), "mensagem do Chatwoot agenda atualização no escopo do ticket");
 Verificar(ChatwootTempoReal.LerAlteracao(Mensagem("""{"message":{"event":"assignee.changed","data":{"account_id":1,"inbox_id":42,"id":345}}}"""), 1)
@@ -128,14 +159,66 @@ Verificar(ChatwootTempoReal.LerAlteracao(Mensagem("""{"message":{"event":"conver
     "evento de outra conta é ignorado");
 Verificar(ChatwootTempoReal.LerAlteracao(Mensagem("""{"message":{"event":"conversation.typing_on","data":{"account_id":1,"inbox_id":12,"id":345}}}"""), 1) is null,
     "digitação não dispara a consulta da fila");
+using (var api = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, [1]),
+    new HttpClient(new ApiSimulada([contato], vazia: true, agenteId: null, grupoNaoAtribuido: true))))
+{
+    var tickets = await api.SincronizarNaoAtribuidosAsync(CancellationToken.None);
+    var grupo = tickets.Single();
+    Verificar(grupo.EhGrupo && string.IsNullOrEmpty(grupo.Empresa) && grupo.AgenteAtribuidoId is null,
+        "fila não atribuída lê o grupo sem exigir empresa nem atribuir o ticket ao usuário");
+}
+foreach (var (permissao, negarApi, esperaConsulta, esperaVisibilidade) in new[]
+{
+    ("conversation_participating_manage", false, false, false),
+    ("report_manage", false, false, false),
+    ("agent", false, true, true),
+    ("conversation_manage", false, true, true),
+    ("conversation_unassigned_manage", false, true, true),
+    ("conversation_unassigned_manage", true, true, false)
+})
+{
+    var servidor = new ApiPermissoes(permissao, negarApi);
+    using var api = new ChatwootSyncService(new("https://chatwoot.invalid", "TOKEN-FICTICIO", 1, 42, [1]), new HttpClient(servidor));
+    var resultado = await MonitoramentoService.SincronizarAsync(api, CancellationToken.None);
+    Verificar(servidor.ConsultouNaoAtribuidos == esperaConsulta && resultado.PodeVerNaoAtribuidos == esperaVisibilidade,
+        $"visibilidade de Não atribuídos com {permissao} e API {(negarApi ? "negada" : "disponível")}");
+}
 Console.WriteLine("Contrato Chatwoot validado com dados sintéticos; nenhum servidor real foi consultado.");
 
-sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = false, long? agenteId = 42, string? empresaPadrao = null, string? emailContato = null) : HttpMessageHandler
+sealed class ApiPermissoes(string permissao, bool negarApi) : HttpMessageHandler
+{
+    public bool ConsultouNaoAtribuidos { get; private set; }
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var caminho = request.RequestUri!.PathAndQuery;
+        if (caminho.EndsWith("/profile", StringComparison.Ordinal))
+            return Resposta(JsonSerializer.Serialize(new { id = 42, accounts = new[]
+            {
+                new { id = 7, role = "administrator", permissions = new[] { "administrator" } },
+                new { id = 1, role = "agent", permissions = new[] { permissao } }
+            } }));
+        if (caminho.Contains("assignee_type=unassigned", StringComparison.Ordinal))
+        {
+            ConsultouNaoAtribuidos = true;
+            if (negarApi) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
+        }
+        return Resposta("""{"data":{"payload":[]}}""");
+    }
+
+    private static Task<HttpResponseMessage> Resposta(string json) =>
+        Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") });
+}
+
+sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = false, long? agenteId = 42, string? empresaPadrao = null, string? emailContato = null, bool grupoNaoAtribuido = false, string? campoEsperaJson = null) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         if (request.Method != HttpMethod.Get) throw new InvalidOperationException("Somente GET é permitido no teste.");
         var caminho = request.RequestUri!.PathAndQuery;
+        if (grupoNaoAtribuido && !caminho.Contains("/messages")
+            && (!caminho.Contains("assignee_type=unassigned") || !caminho.Contains("inbox_id=1")))
+            throw new InvalidOperationException("A fila de não atribuídos deve usar o filtro do Chatwoot e a caixa configurada.");
         string json;
         if (caminho.Contains("/messages"))
         {
@@ -146,9 +229,11 @@ sealed class ApiSimulada(JsonElement[] mensagens, bool vazia, bool paginar = fal
         }
         else if (caminho.Contains("status=open") && caminho.Contains("page=1&"))
         {
-            object conversa = new { id = 19622, meta = new { sender = new { name = "Contato de teste", email = emailContato, additional_attributes = new { company_name = empresaPadrao }, custom_attributes = new { empresa = "Empresa de teste" } }, assignee_type = "User", assignee = agenteId is { } idAgente ? (object)new { id = idAgente } : null }, status = "open", created_at = 1794330000,
+            object conversa = new { id = 19622, meta = new { sender = new { name = "Contato de teste", identifier = grupoNaoAtribuido ? "120363000@g.us" : null, email = emailContato, additional_attributes = new { company_name = empresaPadrao }, custom_attributes = new { empresa = grupoNaoAtribuido ? null : "Empresa de teste" } }, assignee_type = "User", assignee = agenteId is { } idAgente ? (object)new { id = idAgente } : null }, status = "open", created_at = 1794330000,
                 last_activity_at = 1794399999, last_non_activity_message = vazia ? (object?)null : mensagens.First(x => x.GetProperty("id").GetInt32() == 4) };
             json = JsonSerializer.Serialize(new { data = new { payload = new[] { conversa } } });
+            if (campoEsperaJson is not null)
+                json = json.Replace("\"status\":\"open\"", $"\"status\":\"open\",\"waiting_since\":{campoEsperaJson}", StringComparison.Ordinal);
         }
         else json = """{"data":{"payload":[]}}""";
         return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") });

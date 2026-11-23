@@ -48,10 +48,12 @@ internal static class MensagemChatwoot
             ? valor : null;
     }
 
-    public static bool DoAgente(JsonElement mensagem, long usuarioId) => Publica(mensagem)
+    public static bool DeAgente(JsonElement mensagem) => Publica(mensagem)
         && Tipo(mensagem) is 1 or 3
-        && string.Equals(TipoRemetente(mensagem), "user", StringComparison.OrdinalIgnoreCase)
-        && IdRemetente(mensagem) == usuarioId;
+        && string.Equals(TipoRemetente(mensagem), "user", StringComparison.OrdinalIgnoreCase);
+
+    public static bool DoAgente(JsonElement mensagem, long usuarioId) =>
+        DeAgente(mensagem) && IdRemetente(mensagem) == usuarioId;
 
     public static bool DoContato(JsonElement mensagem) => Publica(mensagem) && Tipo(mensagem) == 0
         && string.Equals(TipoRemetente(mensagem), "contact", StringComparison.OrdinalIgnoreCase);

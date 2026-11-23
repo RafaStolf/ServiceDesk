@@ -30,6 +30,9 @@ public static class ConfiguracaoLocal
 
     private static string? LocalizarArquivo()
     {
+        if (Environment.GetEnvironmentVariable("SERVICEDESK_DIAGNOSTICO") == "1"
+            && Environment.GetEnvironmentVariable("SERVICEDESK_CONFIGURACAO_TESTE") is { Length: > 0 } teste)
+            return teste;
         var perfil = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".servicedesk", "application.properties");
         if (File.Exists(perfil)) return perfil;
         var diretorio = new DirectoryInfo(AppContext.BaseDirectory);
