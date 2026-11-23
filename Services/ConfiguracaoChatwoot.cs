@@ -1,6 +1,6 @@
 namespace ServiceDesk.Services;
 
-public sealed record ConfiguracaoChatwoot(string BaseUrl, string Token, long ContaId, long? UsuarioId, long? InboxId);
+public sealed record ConfiguracaoChatwoot(string BaseUrl, string Token, long ContaId, long? UsuarioId, IReadOnlyList<long> InboxIds);
 
 public static class CarregadorConfiguracaoChatwoot
 {
@@ -19,6 +19,16 @@ public static class CarregadorConfiguracaoChatwoot
 
         return new ConfiguracaoChatwoot(baseUrl.TrimEnd('/'), token, contaId,
             long.TryParse(usuario, out var usuarioId) ? usuarioId : null,
-            long.TryParse(inbox, out var inboxId) ? inboxId : null);
+            ParseInboxIds(inbox));
+    }
+
+    internal static IReadOnlyList<long> ParseInboxIds(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor)) return [];
+        var ids = new List<long>();
+        foreach (var parte in valor.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            if (long.TryParse(parte, out var id) && id > 0)
+                ids.Add(id);
+        return ids;
     }
 }

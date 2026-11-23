@@ -6,15 +6,28 @@ public sealed record PoliticaSla(string Nome, string Estado, double? PrimeiraRes
     double? ResolucaoMeta, bool? ApenasHorarioComercial, DateTimeOffset? PrimeiraRespostaVence,
     DateTimeOffset? ProximaRespostaVence, DateTimeOffset? ResolucaoVence, DateTimeOffset? ConcluidoEm)
 {
-    public string Situacao => Estado switch
+    public string Situacao => RotuloEstado(Estado);
+
+    public static string RotuloEstado(string estado) => estado switch
     {
-        "active" => "Em acompanhamento", "hit" => "Cumprido", "missed" => "Violado",
-        "active_with_misses" => "Em acompanhamento · com violação", _ => "Situação não informada"
+        "active" => "Ativo", "hit" => "Cumprido", "missed" => "Violado",
+        "active_with_misses" => "Ativo com violações", _ => "Situação não informada"
     };
 }
 public sealed record TicketMetricas(long Id, string Contato, string Empresa, string Status, IReadOnlyList<EventoMetrica> Eventos,
-    PoliticaSla? Sla, IReadOnlyList<OcorrenciaSla> Ocorrencias, string? Aviso, bool PeriodoConfirmado = true);
-public sealed record ResultadoMetricas(IReadOnlyList<TicketMetricas> Tickets, IReadOnlyList<string> Avisos, bool Parcial, DateTimeOffset ConsultadoEm);
+    PoliticaSla? Sla, IReadOnlyList<OcorrenciaSla> Ocorrencias, string? Aviso, bool PeriodoConfirmado = true, bool SlaNoPeriodo = true);
+public sealed record ResultadoMetricas(IReadOnlyList<TicketMetricas> Tickets, IReadOnlyList<string> Avisos, bool Parcial, DateTimeOffset ConsultadoEm, bool EscopoDaCaixa = false);
+public sealed record SituacaoSla(int Ativos, int Cumpridos, int Violados, int AtivosComViolacoes, int SemDados)
+{
+    public static SituacaoSla Calcular(IEnumerable<TicketMetricas> tickets)
+    {
+        var estados = tickets.Where(ticket => ticket.PeriodoConfirmado && ticket.SlaNoPeriodo)
+            .ToLookup(ticket => ticket.Sla?.Estado);
+        return new(estados["active"].Count(), estados["hit"].Count(), estados["missed"].Count(),
+            estados["active_with_misses"].Count(),
+            estados.Where(grupo => grupo.Key is not ("active" or "hit" or "missed" or "active_with_misses")).Sum(grupo => grupo.Count()));
+    }
+}
 public sealed record IndicadorMetrica(double? MediaSegundos, int Quantidade);
 public sealed record ResumoMetricas(IndicadorMetrica PrimeiraResposta, IndicadorMetrica RespostasSeguintes, IndicadorMetrica Resolucao)
 {

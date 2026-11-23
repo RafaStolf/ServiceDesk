@@ -1,0 +1,119 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="MarcaFundoBrush" Color="#101722"/>
+            <SolidColorBrush x:Key="MarcaLateralBrush" Color="#1D2A3B"/>
+            <SolidColorBrush x:Key="MarcaSuperficieBrush" Color="#172333"/>
+            <SolidColorBrush x:Key="CardAtendimentoFundoBrush" Color="#1E293B"/>
+            <SolidColorBrush x:Key="CardAtrasadoFundoBrush" Color="#481C29"/>
+            <SolidColorBrush x:Key="CardAtrasadoBordaBrush" Color="#AC5363"/>
+            <SolidColorBrush x:Key="CardIdBrush" Color="#A8B8CD"/>
+            <SolidColorBrush x:Key="CardResolvidoBrush" Color="#91B3A5"/>
+            <SolidColorBrush x:Key="MarcaContornoBrush" Color="#354B65"/>
+            <SolidColorBrush x:Key="MarcaSecundariaBrush" Color="#BAC9DD"/>
+            <SolidColorBrush x:Key="MarcaCriticaBrush" Color="#FF919B"/>
+            <SolidColorBrush x:Key="MarcaAdiadaBrush" Color="#F2B84B"/>
+            <SolidColorBrush x:Key="MarcaAtivaBrush" Color="#6DADFF"/>
+            <SolidColorBrush x:Key="MarcaCumpridaBrush" Color="#8EF0C5"/>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="MarcaFundoBrush" Color="#EDF3F9"/>
+            <SolidColorBrush x:Key="MarcaLateralBrush" Color="#E1ECF8"/>
+            <SolidColorBrush x:Key="MarcaSuperficieBrush" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="CardAtendimentoFundoBrush" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="CardAtrasadoFundoBrush" Color="#FBE2E7"/>
+            <SolidColorBrush x:Key="CardAtrasadoBordaBrush" Color="#B55064"/>
+            <SolidColorBrush x:Key="CardIdBrush" Color="#40566F"/>
+            <SolidColorBrush x:Key="CardResolvidoBrush" Color="#486859"/>
+            <SolidColorBrush x:Key="MarcaContornoBrush" Color="#A0B6CF"/>
+            <SolidColorBrush x:Key="MarcaSecundariaBrush" Color="#40566F"/>
+            <SolidColorBrush x:Key="MarcaCriticaBrush" Color="#A52236"/>
+            <SolidColorBrush x:Key="MarcaAdiadaBrush" Color="#815409"/>
+            <SolidColorBrush x:Key="MarcaAtivaBrush" Color="#2166B0"/>
+            <SolidColorBrush x:Key="MarcaCumpridaBrush" Color="#16734F"/>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="MarcaFundoBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+            <SolidColorBrush x:Key="MarcaLateralBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+            <SolidColorBrush x:Key="MarcaSuperficieBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+            <SolidColorBrush x:Key="CardAtendimentoFundoBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+            <SolidColorBrush x:Key="CardAtrasadoFundoBrush" Color="{ThemeResource SystemColorWindowColor}"/>
+            <SolidColorBrush x:Key="CardAtrasadoBordaBrush" Color="{ThemeResource SystemColorHighlightColor}"/>
+            <SolidColorBrush x:Key="CardIdBrush" Color="{ThemeResource SystemColorWindowTextColor}"/>
+            <SolidColorBrush x:Key="CardResolvidoBrush" Color="{ThemeResource SystemColorWindowTextColor}"/>
+            <SolidColorBrush x:Key="MarcaContornoBrush" Color="{ThemeResource SystemColorWindowTextColor}"/>
+            <SolidColorBrush x:Key="MarcaSecundariaBrush" Color="{ThemeResource SystemColorWindowTextColor}"/>
+            <SolidColorBrush x:Key="MarcaCriticaBrush" Color="{ThemeResource SystemColorWindowTextColor}"/>
+            <SolidColorBrush x:Key="MarcaAdiadaBrush" Color="{ThemeResource SystemColorWindowTextColor}"/>
+            <SolidColorBrush x:Key="MarcaAtivaBrush" Color="{ThemeResource SystemColorHighlightColor}"/>
+            <SolidColorBrush x:Key="MarcaCumpridaBrush" Color="{ThemeResource SystemColorWindowTextColor}"/>
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+    <Style x:Key="PainelServiceDeskStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource MarcaSuperficieBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource MarcaContornoBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="14" />
+    </Style>
+    <Style x:Key="CardAtendimentoServiceDeskStyle" TargetType="Button">
+        <Setter Property="Background" Value="{ThemeResource CardAtendimentoFundoBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource MarcaContornoBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="10,5,10,8" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="CardAtrasadoServiceDeskStyle" TargetType="Button" BasedOn="{StaticResource CardAtendimentoServiceDeskStyle}">
+        <Setter Property="Background" Value="{ThemeResource CardAtrasadoFundoBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource CardAtrasadoBordaBrush}" />
+    </Style>
+    <Style x:Key="TextoIdCardServiceDeskStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource CardIdBrush}" />
+    </Style>
+    <Style x:Key="TextoResolvidoCardServiceDeskStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource CardResolvidoBrush}" />
+    </Style>
+    <Style x:Key="TextoAtivoCardServiceDeskStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource MarcaAtivaBrush}" />
+    </Style>
+    <Style x:Key="TextoRespondidoCardServiceDeskStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource MarcaCumpridaBrush}" />
+    </Style>
+    <Style x:Key="DivisorServiceDeskStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource MarcaContornoBrush}" />
+    </Style>
+    <Style x:Key="LateralServiceDeskStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource MarcaLateralBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource MarcaContornoBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,1,0" />
+        <Setter Property="Padding" Value="8,12" />
+    </Style>
+    <Style x:Key="TextoSecundarioServiceDeskStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource MarcaSecundariaBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="TextoAdiadoServiceDeskStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource MarcaAdiadaBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="TextoCriticoServiceDeskStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource MarcaCriticaBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="BarraAtivaServiceDeskStyle" TargetType="Border"><Setter Property="Background" Value="{ThemeResource MarcaAtivaBrush}" /></Style>
+    <Style x:Key="BarraCumpridaServiceDeskStyle" TargetType="Border"><Setter Property="Background" Value="{ThemeResource MarcaCumpridaBrush}" /></Style>
+    <Style x:Key="BarraVioladaServiceDeskStyle" TargetType="Border"><Setter Property="Background" Value="{ThemeResource MarcaCriticaBrush}" /></Style>
+    <Style x:Key="BarraAdiadaServiceDeskStyle" TargetType="Border"><Setter Property="Background" Value="{ThemeResource MarcaAdiadaBrush}" /></Style>
+</ResourceDictionary>

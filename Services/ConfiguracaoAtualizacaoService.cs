@@ -1,11 +1,12 @@
 using System.Runtime.InteropServices;
+using ServiceDesk.Models;
 using Windows.Storage;
 
 namespace ServiceDesk.Services;
 
 public sealed record ConfiguracaoAtualizacao(bool Ativa, int IntervaloMinutos, bool NotificacoesAtivas, int LimiteNotificacaoMinutos, bool TempoReal = true)
 {
-    public static readonly ConfiguracaoAtualizacao Padrao = new(true, 5, true, 10);
+    public static readonly ConfiguracaoAtualizacao Padrao = new(true, 5, true, AcompanhamentoN1.PrazoRespostaMinimo);
 }
 
 /// <summary>Armazena preferências de atualização por usuário, no pacote Windows ou no perfil local da versão portátil.</summary>
@@ -44,7 +45,7 @@ public sealed class ConfiguracaoAtualizacaoService
             ? limiteConfigurado : ConfiguracaoAtualizacao.Padrao.LimiteNotificacaoMinutos;
         var tempoReal = !valores.TryGetValue(TempoRealKey, out var valorTempoReal)
             || valorTempoReal is not bool modoTempoReal || modoTempoReal;
-        return new ConfiguracaoAtualizacao(ativa, Math.Clamp(minutos, 1, 120), notificacoesAtivas, Math.Clamp(limite, 1, 1440), tempoReal);
+        return Normalizar(new ConfiguracaoAtualizacao(ativa, minutos, notificacoesAtivas, limite, tempoReal));
     }
 
     public void Salvar(ConfiguracaoAtualizacao configuracao)
@@ -62,7 +63,7 @@ public sealed class ConfiguracaoAtualizacaoService
         valores[TempoRealKey] = configuracao.TempoReal;
         valores[IntervaloKey] = Math.Clamp(configuracao.IntervaloMinutos, 1, 120);
         valores[NotificacoesAtivasKey] = configuracao.NotificacoesAtivas;
-        valores[LimiteNotificacaoKey] = Math.Clamp(configuracao.LimiteNotificacaoMinutos, 1, 1440);
+        valores[LimiteNotificacaoKey] = Math.Clamp(configuracao.LimiteNotificacaoMinutos, AcompanhamentoN1.PrazoRespostaMinimo, 1440);
     }
 
     private static string ArquivoPortatil => Path.Combine(
@@ -71,7 +72,7 @@ public sealed class ConfiguracaoAtualizacaoService
     private static ConfiguracaoAtualizacao Normalizar(ConfiguracaoAtualizacao valor) => valor with
     {
         IntervaloMinutos = Math.Clamp(valor.IntervaloMinutos, 1, 120),
-        LimiteNotificacaoMinutos = Math.Clamp(valor.LimiteNotificacaoMinutos, 1, 1440)
+        LimiteNotificacaoMinutos = Math.Clamp(valor.LimiteNotificacaoMinutos, AcompanhamentoN1.PrazoRespostaMinimo, 1440)
     };
 
     [DllImport("kernel32.dll", ExactSpelling = true)]
